@@ -27,7 +27,8 @@
     diameterUnit: 'in',
     heightUnit: 'ft',
     sliderCap: 60,          // slider max (inches); the top stop means "this or larger"
-    maxPerView: 2000,       // max trees drawn per map view (also capped by the layer)
+    maxPerView: 2000,       // max trees drawn on the map at once (also capped by the layer)
+    listPageSize: 50,       // trees per page in the side list
     center: [47.6062, -122.3321],
     zoom: 13,
   };
@@ -60,7 +61,12 @@
     dReadout: $('diam-readout'),
     reset: $('reset'),
     countTotal: $('count-total'),
-    countView: $('count-view'),
+    mapStatus: $('map-status'),
+    showMap: $('show-map'),
+    searchArea: $('search-area'),
+    list2: $('tree-list'),
+    listStatus: $('list-status'),
+    loadMore: $('load-more'),
     notice: $('notice'),
   };
 
@@ -178,22 +184,62 @@
 
   // ---------------------------------------------------------------------------
   // Loading data
+  //
+  // Calls are made only when something changes:
+  //   filter change  -> 1 count + 1 list page
+  //   "Load more"    -> 1 list page
+  //   "Show on map"  -> 1 feature query (all matches, or the current area)
+  //   panning/zoom   -> nothing (a "Search this area" button appears instead)
   // ---------------------------------------------------------------------------
-  let totalCtl = null;
-  let viewCtl = null;
+  const highlightLayer = L.layerGroup().addTo(map);
+  const ctl = { count: null, list: null, map: null };
+  let matchCount = null;
+  let listFeatures = [];
+  let mapMode = 'none'; // 'none' | 'all' | 'area'
+  let searched = null;  // {center, zoom} of the last area search
+
+  function fresh(key) {
+    ctl[key]?.abort();
+    ctl[key] = new AbortController();
+    return ctl[key].signal;
+  }
 
   function showNotice(msg) {
     els.notice.textContent = msg || '';
     els.notice.hidden = !msg;
   }
 
-  async function loadTotal() {
-    totalCtl?.abort();
-    totalCtl = new AbortController();
+  const mapLimit = () => Math.min(CONFIG.maxPerView, state.maxRecordCount);
+  const outFields = () => [state.objectIdField, ...new Set(Object.values(state.f))].join(',');
+  const isNarrow = () => window.matchMedia('(max-width: 720px)').matches;
+
+  function collapsePanelOnMobile() {
+    if (isNarrow() && !els.panel.classList.contains('collapsed')) {
+      els.toggle.click();
+      map.invalidateSize(); // apply the new map size before framing anything
+    }
+  }
+
+  function updateMapButton() {
+    const b = els.showMap;
+    if (matchCount === null) { b.disabled = true; b.textContent = 'Show on map'; return; }
+    if (matchCount === 0) { b.disabled = true; b.textContent = 'No trees to show'; return; }
+    b.disabled = false;
+    b.textContent = matchCount <= mapLimit()
+      ? `Show ${matchCount === 1 ? 'it' : `all ${fmt.format(matchCount)}`} on map`
+      : 'Show matches in this map area';
+  }
+
+  async function loadCount() {
+    const signal = fresh('count');
+    matchCount = null;
+    updateMapButton();
     els.countTotal.textContent = '…';
     try {
-      const { count } = await query({ where: buildWhere(), returnCountOnly: 'true' }, totalCtl.signal);
+      const { count } = await query({ where: buildWhere(), returnCountOnly: 'true' }, signal);
+      matchCount = count;
       els.countTotal.textContent = fmt.format(count);
+      updateMapButton();
     } catch (e) {
       if (e.name === 'AbortError') return;
       els.countTotal.textContent = '–';
@@ -201,13 +247,91 @@
     }
   }
 
-  async function loadView() {
-    viewCtl?.abort();
-    viewCtl = new AbortController();
-    const { signal } = viewCtl;
+  function treeSubtitle(a) {
+    const f = state.f;
+    const bits = [];
+    if (!state.selectedSpecies && f.common && a[f.common]) bits.push(display(f.common, a[f.common]));
+    if (f.diameter && Number(a[f.diameter]) > 0) bits.push(`${a[f.diameter]} ${CONFIG.diameterUnit}`);
+    if (f.planted && typeof a[f.planted] === 'number') bits.push(`planted ${new Date(a[f.planted]).getUTCFullYear()}`);
+    return bits.join(' · ');
+  }
 
+  function renderListRows(features, startIdx) {
+    const html = features.map((ft, i) => {
+      const a = ft.attributes;
+      const title = (state.f.address && a[state.f.address]) || (state.f.unitId && a[state.f.unitId]) || 'Tree';
+      return `<li><button type="button" class="tree-row" data-i="${startIdx + i}"${ft.geometry ? '' : ' disabled'}>
+          <span class="tree-title">${esc(title)}</span>
+          <span class="tree-sub">${esc(treeSubtitle(a))}</span>
+        </button></li>`;
+    }).join('');
+    els.list2.insertAdjacentHTML('beforeend', html);
+  }
+
+  async function loadList(reset) {
+    const signal = reset ? fresh('list') : ctl.list?.signal;
+    if (reset) {
+      listFeatures = [];
+      els.list2.innerHTML = '';
+      els.listStatus.textContent = 'Loading…';
+      els.loadMore.hidden = true;
+    } else {
+      els.loadMore.disabled = true;
+    }
+    const order = state.f.diameter
+      ? `${state.f.diameter} DESC, ${state.objectIdField} ASC`
+      : `${state.objectIdField} ASC`;
+    try {
+      const r = await query({
+        where: buildWhere(),
+        outFields: outFields(),
+        returnGeometry: 'true',
+        outSR: '4326',
+        orderByFields: order,
+        resultOffset: String(listFeatures.length),
+        resultRecordCount: String(CONFIG.listPageSize),
+      }, signal);
+      const feats = r.features || [];
+      renderListRows(feats, listFeatures.length);
+      listFeatures.push(...feats);
+      const more = r.exceededTransferLimit || feats.length === CONFIG.listPageSize;
+      els.loadMore.hidden = !more;
+      els.loadMore.disabled = false;
+      els.listStatus.textContent = listFeatures.length
+        ? `Showing ${fmt.format(listFeatures.length)}${matchCount ? ` of ${fmt.format(matchCount)}` : ''}, largest first`
+        : 'No trees match these filters.';
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      els.loadMore.disabled = false;
+      els.listStatus.textContent = `Couldn't load the list: ${e.message}`;
+    }
+  }
+
+  function markerFor(feat, style) {
+    const g = feat.geometry;
+    return L.circleMarker([g.y, g.x], {
+      renderer,
+      radius: radiusFor(feat.attributes),
+      color: '#1f5c38',
+      weight: 1,
+      fillColor: '#3fa66a',
+      fillOpacity: 0.75,
+      ...style,
+    }).bindPopup(() => popupHtml(feat.attributes), { maxWidth: 260 });
+  }
+
+  function clearMap() {
+    ctl.map?.abort();
+    treeLayer.clearLayers();
+    highlightLayer.clearLayers();
+    mapMode = 'none';
+    els.searchArea.hidden = true;
+    els.mapStatus.textContent = '';
+  }
+
+  function envelopeParams() {
     const b = map.getBounds();
-    const spatial = {
+    return {
       geometry: JSON.stringify({
         xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth(),
         spatialReference: { wkid: 4326 },
@@ -216,52 +340,55 @@
       inSR: '4326',
       spatialRel: 'esriSpatialRelIntersects',
     };
-    const where = buildWhere();
-    const limit = Math.min(CONFIG.maxPerView, state.maxRecordCount);
-    const outFields = [state.objectIdField, ...new Set(Object.values(state.f))].join(',');
+  }
 
-    els.countView.textContent = 'Loading trees in view…';
+  async function showOnMap(mode) {
+    const signal = fresh('map');
+    els.searchArea.hidden = true;
+    els.mapStatus.textContent = 'Loading trees onto the map…';
+    showNotice('');
     try {
-      const [countRes, featRes] = await Promise.all([
-        query({ where, ...spatial, returnCountOnly: 'true' }, signal),
-        query({
-          where, ...spatial,
-          outFields,
-          returnGeometry: 'true',
-          outSR: '4326',
-          resultRecordCount: String(limit),
-        }, signal),
-      ]);
-
+      const r = await query({
+        where: buildWhere(),
+        ...(mode === 'area' ? envelopeParams() : {}),
+        outFields: outFields(),
+        returnGeometry: 'true',
+        outSR: '4326',
+        resultRecordCount: String(mapLimit()),
+      }, signal);
       treeLayer.clearLayers();
-      for (const feat of featRes.features || []) {
-        const g = feat.geometry;
-        if (!g || g.x == null || g.y == null) continue;
-        L.circleMarker([g.y, g.x], {
-          renderer,
-          radius: radiusFor(feat.attributes),
-          color: '#1f5c38',
-          weight: 1,
-          fillColor: '#3fa66a',
-          fillOpacity: 0.75,
-        })
-          .bindPopup(() => popupHtml(feat.attributes), { maxWidth: 260 })
-          .addTo(treeLayer);
-      }
+      highlightLayer.clearLayers();
+      const feats = (r.features || []).filter((ft) => ft.geometry && ft.geometry.x != null);
+      for (const ft of feats) markerFor(ft).addTo(treeLayer);
+      mapMode = mode;
+      collapsePanelOnMobile();
+      searched = { center: map.getCenter(), zoom: map.getZoom() };
 
-      const inView = countRes.count;
-      const shown = (featRes.features || []).length;
-      els.countView.textContent = `${fmt.format(inView)} in current map view`;
-      if (shown < inView) {
-        showNotice(`Showing ${fmt.format(shown)} of ${fmt.format(inView)} trees in view. Zoom in to see them all.`);
-      } else {
-        showNotice('');
+      const n = fmt.format(feats.length);
+      els.mapStatus.textContent = mode === 'all'
+        ? `${n} on the map`
+        : `${n} on the map in this area`;
+      if (r.exceededTransferLimit) {
+        showNotice(`Only the first ${n} are drawn. Zoom in and use “Search this area” to see more.`);
+      } else if (mode === 'area' && !feats.length) {
+        showNotice('No matching trees in this area. Zoom out or move the map, then search again.');
+      }
+      if (mode === 'all' && feats.length) {
+        map.fitBounds(L.latLngBounds(feats.map((ft) => [ft.geometry.y, ft.geometry.x])), { padding: [30, 30], maxZoom: 17 });
       }
     } catch (e) {
       if (e.name === 'AbortError') return;
-      els.countView.textContent = '';
-      showNotice(`Couldn't load trees for this view: ${e.message}`);
+      els.mapStatus.textContent = '';
+      showNotice(`Couldn't load trees onto the map: ${e.message}`);
     }
+  }
+
+  function focusTree(feat) {
+    highlightLayer.clearLayers();
+    const m = markerFor(feat, { color: '#7a3b00', weight: 3, fillColor: '#f0a030', fillOpacity: 0.95 }).addTo(highlightLayer);
+    collapsePanelOnMobile();
+    map.setView(m.getLatLng(), Math.max(map.getZoom(), 17));
+    m.openPopup();
   }
 
   function debounce(fn, ms) {
@@ -269,8 +396,33 @@
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
 
-  const refreshAll = debounce(() => { loadTotal(); loadView(); }, 250);
-  map.on('moveend', debounce(loadView, 250));
+  const refreshAll = debounce(() => {
+    clearMap();
+    showNotice('');
+    loadCount().then(() => {
+      // Re-render the status line now that the total is known.
+      if (listFeatures.length) {
+        els.listStatus.textContent = `Showing ${fmt.format(listFeatures.length)} of ${fmt.format(matchCount ?? 0)}, largest first`;
+      }
+    });
+    loadList(true);
+  }, 250);
+
+  els.showMap.addEventListener('click', () => {
+    showOnMap(matchCount !== null && matchCount <= mapLimit() ? 'all' : 'area');
+  });
+  els.searchArea.addEventListener('click', () => showOnMap('area'));
+  els.loadMore.addEventListener('click', () => loadList(false));
+  els.list2.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tree-row');
+    if (btn) focusTree(listFeatures[Number(btn.dataset.i)]);
+  });
+  map.on('moveend', () => {
+    // Offer a new search only once the user has really moved away from the searched view.
+    if (mapMode !== 'area' || !searched) return;
+    const moved = map.latLngToContainerPoint(searched.center).distanceTo(map.getSize().divideBy(2));
+    if (moved > 60 || map.getZoom() !== searched.zoom) els.searchArea.hidden = false;
+  });
 
   // ---------------------------------------------------------------------------
   // Species combobox
@@ -473,8 +625,7 @@
     els.dMin.max = els.dMax.max = state.sliderMax;
     els.dMax.value = state.sliderMax;
     updateRangeUi();
-    loadTotal();
-    loadView();
+    refreshAll();
   }
 
   updateRangeUi();

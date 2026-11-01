@@ -45,8 +45,16 @@
 
       <section class="stats" aria-live="polite">
         <p class="count"><span id="count-total">–</span> <span class="count-label">matching trees in Seattle</span></p>
-        <p class="sub" id="count-view"></p>
+        <button id="show-map" class="primary" type="button" disabled>Show on map</button>
+        <p class="sub" id="map-status"></p>
         <p class="notice" id="notice" hidden></p>
+      </section>
+
+      <section class="results" aria-labelledby="results-head">
+        <h2 id="results-head">Matching trees</h2>
+        <p class="hint" id="list-status" aria-live="polite"></p>
+        <ol id="tree-list" class="tree-list"></ol>
+        <button id="load-more" class="reset" type="button" hidden>Load more</button>
       </section>
 
       <p class="source">
@@ -55,7 +63,10 @@
       </p>
     </aside>
 
-    <div id="map" class="map" role="region" aria-label="Map of trees"></div>
+    <div class="map-wrap">
+      <div id="map" class="map" role="region" aria-label="Map of trees"></div>
+      <button id="search-area" class="map-float" type="button" hidden>Search this area</button>
+    </div>
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"

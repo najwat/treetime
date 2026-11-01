@@ -14,23 +14,34 @@ Only in-service trees are shown (`CURRENT_STATUS = 'INSVC'`).
 
 - **Tree type filter**: a searchable dropdown of common names, sorted by how many trees each has.
 - **Diameter filter**: a two-handle range slider on trunk diameter (inches). The top stop means "this size or larger".
+- **Results list**: matching trees appear in the side panel, largest first, 50 at a time with **Load more**. Tap a tree to zoom to it and open its details.
+- **Show on map**: the map stays empty until you ask. If 2,000 or fewer trees match, the button draws them all and frames the map around them. If more match, it draws the matches in the current map area. After you move the map, a **Search this area** button appears.
 - **Map**: Leaflet with OpenStreetMap tiles. Each tree is a point sized by diameter. Tap or click a tree for a popup with its name, scientific name, diameter, height, location and other details.
-- **Count**: the number of matching trees citywide and in the current map view.
-- Works on phones: on narrow screens the filters stack above the map and can be collapsed.
+- **Count**: the number of matching trees citywide.
+- Works on phones: on narrow screens the filters stack above the map and can be collapsed. The panel collapses on its own when you send trees to the map.
 
 ## How it queries the data
 
-Filtering is done by the ArcGIS REST API, so the browser never downloads the whole dataset:
+Filtering is done by the ArcGIS REST API, so the browser never downloads the whole dataset. Requests are made only when you do something:
+
+| Action | Requests |
+| --- | --- |
+| Page load | layer info, tree-type list, diameter range, count, first page of the list (5) |
+| Change a filter | count + first page of the list (2) |
+| Load more | next page of the list (1) |
+| Show on map / Search this area | the matching trees, all of them or those in the current area, up to 2,000 (1) |
+| Pan, zoom, tap a tree in the list | none |
+
+The queries behind these:
 
 | What | Query |
 | --- | --- |
-| Field names | `GET …/FeatureServer/0?f=json`, read once at startup |
+| Field names | `GET …/FeatureServer/0?f=json` |
 | Tree-type list | `query` with `groupByFieldsForStatistics=<common name>` and a `count` statistic |
 | Diameter range | `query` with a `max` statistic on the diameter field |
-| Citywide count | `query` with `where=<filters>&returnCountOnly=true` |
-| Trees on the map | `query` with `where=<filters>` plus the current map extent as an envelope, up to 2,000 points per view |
-
-When more trees match in the current view than can be drawn at once, the app says so and asks you to zoom in.
+| Count | `query` with `where=<filters>&returnCountOnly=true` |
+| List page | `query` with `orderByFields=<diameter> DESC`, `resultOffset` and `resultRecordCount=50` |
+| Map points | `query` with `where=<filters>`, plus the map extent as an envelope in area mode |
 
 ### Field mapping
 
