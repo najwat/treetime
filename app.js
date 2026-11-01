@@ -159,7 +159,7 @@
     if (get('condition')) rows.push(['Condition', get('condition')]);
     if (planted !== null) {
       const d = typeof planted === 'number' ? new Date(planted) : null;
-      rows.push(['Planted', d && !isNaN(d) ? d.toLocaleDateString() : planted]);
+      rows.push(['Planted', d && !isNaN(d) ? d.toLocaleDateString(undefined, { timeZone: 'UTC' }) : planted]);
     }
     if (get('unitId')) rows.push(['Tree ID', get('unitId')]);
 
