@@ -1,4 +1,5 @@
-/* Seattle Street Trees explorer — plain JS, no build step. */
+/* Seattle Street Trees: plain JS, no build step.
+   Look and behavior follow DESIGN.md and reference/prototype.html. */
 (function () {
   'use strict';
 
@@ -10,86 +11,118 @@
     statusField: 'CURRENT_STATUS',
     statusValue: 'INSVC',
 
-    // Field names are looked up against the layer's own metadata at startup.
-    // The first candidate that exists wins; if none does, the regex is tried
-    // against field names and aliases. Edit these if the layer schema changes.
+    // Field names are matched against the layer's own metadata at startup.
     fields: {
-      common:     { candidates: ['COMMON_NAME', 'COMMONNAME', 'COMMON'], pattern: /common/i },
-      scientific: { candidates: ['SCIENTIFIC_NAME', 'SCIENTIFIC', 'BOTANICAL_NAME'], pattern: /scien|botan/i },
-      diameter:   { candidates: ['DIAM', 'DBH', 'DIAMETER', 'DSH'], pattern: /diam|dbh/i },
-      height:     { candidates: ['TREEHEIGHT', 'TREE_HEIGHT', 'HEIGHT'], pattern: /height/i },
-      address:    { candidates: ['UNITDESC', 'ADDRESS', 'LOCATION'], pattern: /addr/i },
-      condition:  { candidates: ['CONDITION'], pattern: null },
+      common:     { candidates: ['COMMON_NAME', 'COMMONNAME'], pattern: /common/i },
+      scientific: { candidates: ['SCIENTIFIC_NAME', 'SCIENTIFIC'], pattern: /scien|botan/i },
+      diameter:   { candidates: ['DIAM', 'DBH', 'DIAMETER'], pattern: /diam|dbh/i },
+      address:    { candidates: ['UNITDESC', 'ADDRESS'], pattern: /addr/i },
       planted:    { candidates: ['PLANTED_DATE', 'PLANTDATE'], pattern: /plant.*date/i },
-      unitId:     { candidates: ['UNITID'], pattern: null },
     },
 
-    diameterUnit: 'in',
-    heightUnit: 'ft',
-    sliderCap: 60,          // slider max (inches); the top stop means "this or larger"
-    maxPerView: 2000,       // max trees drawn on the map at once (also capped by the layer)
-    listPageSize: 50,       // trees per page in the side list
-    center: [47.6062, -122.3321],
-    zoom: 13,
+    maxDiameter: 80,    // inches; larger values are data-entry errors -> "Not recorded"
+    sliderMax: 72,      // top slider stop means "72 and larger"
+    areaLimit: 3000,    // above this many matches in view, ask the user to zoom in
+    listTop: 12,        // species shown before "Show all"
+    home: { center: [47.6145, -122.3360], zoom: 12 },
+    detailZoom: 17,
   };
 
+  // Tree families, as in the prototype. Conifers also include a few Seattle
+  // genera the prototype's small sample didn't contain (Douglas-fir etc.).
+  const FAMS = [
+    { id: 'maple',   name: 'Maples',           g: ['Acer'] },
+    { id: 'cherry',  name: 'Cherries & plums', g: ['Prunus'] },
+    { id: 'pear',    name: 'Pears & apples',   g: ['Pyrus', 'Malus'] },
+    { id: 'ash',     name: 'Ashes',            g: ['Fraxinus'] },
+    { id: 'birch',   name: 'Birches',          g: ['Betula'] },
+    { id: 'oak',     name: 'Oaks',             g: ['Quercus'] },
+    { id: 'conifer', name: 'Conifers',         g: ['Thuja', 'Juniperus', 'Chamaecyparis', 'Cedrus', 'Pinus', 'Picea', 'Abies', 'Tsuga',
+                                                   'Sequoia', 'Sequoiadendron', 'Metasequoia', 'Cupressus', 'Pseudotsuga', 'Calocedrus',
+                                                   'Cryptomeria', 'Larix', 'Taxodium', 'Taxus'] },
+    { id: 'other',   name: 'Everything else',  g: [] },
+  ];
+  const OTHER = FAMS.length - 1;
+  const famOfGenus = {};
+  FAMS.forEach((f, i) => f.g.forEach((g) => { famOfGenus[g] = i; }));
+
+  const SIZES = [
+    { n: 'Young',  r: [0, 5],   l: '<6″' },
+    { n: 'Medium', r: [6, 17],  l: '6–17″' },
+    { n: 'Mature', r: [18, 35], l: '18–35″' },
+    { n: 'Giant',  r: [36, CONFIG.sliderMax], l: '36″+' },
+  ];
+
   // ---------------------------------------------------------------------------
-  // State & DOM
+  // State & helpers
   // ---------------------------------------------------------------------------
   const state = {
-    f: {},                  // resolved field names
-    domains: {},            // field name -> {code: label}
-    objectIdField: 'OBJECTID',
-    maxRecordCount: 2000,
-    species: [],            // [{name, count}]
-    selectedSpecies: null,
-    sliderMax: CONFIG.sliderCap,
-    openEnded: true,        // top slider stop means "and larger"
+    f: {}, oid: 'OBJECTID', maxRec: 2000,
+    fams: new Set(FAMS.map((_, i) => i)),
+    dmin: 0, dmax: CONFIG.sliderMax,
+    sp: null, q: '', showAll: false,
+    sel: null,            // selected feature
+    total: null,          // all in-service trees
+    match: null,          // trees matching current filters
   };
+  let speciesRows = [];   // [{name, count}] for current family/size filters
+  const speciesInfo = new Map(); // common name -> {sci, fam}
 
   const $ = (id) => document.getElementById(id);
-  const els = {
-    panel: $('panel'),
-    toggle: $('toggle-panel'),
-    input: $('species-input'),
-    list: $('species-list'),
-    clear: $('species-clear'),
-    speciesHint: $('species-hint'),
-    dMin: $('diam-min'),
-    dMax: $('diam-max'),
-    dFill: $('diam-fill'),
-    dReadout: $('diam-readout'),
-    reset: $('reset'),
-    countTotal: $('count-total'),
-    mapStatus: $('map-status'),
-    showMap: $('show-map'),
-    searchArea: $('search-area'),
-    list2: $('tree-list'),
-    listStatus: $('list-status'),
-    loadMore: $('load-more'),
-    notice: $('notice'),
+  const fmt = new Intl.NumberFormat('en-US');
+  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const sql = (s) => `'${String(s).replace(/'/g, "''")}'`;
+  const attr = (a, name) => {
+    if (!name) return undefined;
+    if (name in a) return a[name];
+    const k = Object.keys(a).find((x) => x.toUpperCase() === name.toUpperCase());
+    return k ? a[k] : undefined;
   };
 
-  const fmt = new Intl.NumberFormat('en-US');
+  function genusOf(sci) {
+    if (!sci) return '';
+    const parts = String(sci).trim().split(/\s+/);
+    return (parts[0] === 'x' || parts[0] === '×') ? (parts[1] || '') : parts[0];
+  }
+  const famOfSci = (sci) => famOfGenus[genusOf(sci)] ?? OTHER;
+
+  // Recorded diameter in inches, or null when missing / zero / implausibly large.
+  function diamOf(a) {
+    const d = Number(attr(a, state.f.diameter));
+    return d > 0 && d <= CONFIG.maxDiameter ? d : null;
+  }
+  const fmtIn = (d) => (Number.isInteger(d) ? String(d) : d.toFixed(1));
 
   // ---------------------------------------------------------------------------
-  // ArcGIS REST helpers
+  // ArcGIS REST
   // ---------------------------------------------------------------------------
   async function arcgis(path, params, signal) {
     const qs = new URLSearchParams({ f: 'json', ...params });
     const res = await fetch(`${CONFIG.layerUrl}${path}?${qs}`, { signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    if (data.error) {
-      throw new Error(data.error.message + (data.error.details?.length ? ` (${data.error.details.join('; ')})` : ''));
-    }
+    if (data.error) throw new Error(data.error.message || 'Query failed');
     return data;
   }
-
   const query = (params, signal) => arcgis('/query', params, signal);
 
-  function sqlString(s) {
-    return `'${String(s).replace(/'/g, "''")}'`;
+  // Fetch every page of a query (features or grouped statistics).
+  async function queryAll(params, signal, cap = Infinity) {
+    const out = [];
+    for (;;) {
+      const p = out.length ? { ...params, resultOffset: String(out.length) } : params;
+      const r = await query(p, signal);
+      const feats = r.features || [];
+      out.push(...feats);
+      if (!r.exceededTransferLimit || !feats.length || out.length >= cap) return out;
+    }
+  }
+
+  const ctl = {};
+  function fresh(key) {
+    ctl[key]?.abort();
+    ctl[key] = new AbortController();
+    return ctl[key].signal;
   }
 
   function resolveFields(fields) {
@@ -97,537 +130,470 @@
     const out = {};
     for (const [key, spec] of Object.entries(CONFIG.fields)) {
       let hit = spec.candidates.map((c) => byName.get(c.toUpperCase())).find(Boolean);
-      if (!hit && spec.pattern) {
-        hit = fields.find((f) => spec.pattern.test(f.name) || spec.pattern.test(f.alias || ''));
-      }
+      if (!hit && spec.pattern) hit = fields.find((f) => spec.pattern.test(f.name) || spec.pattern.test(f.alias || ''));
       if (hit) out[key] = hit.name;
     }
     return out;
   }
 
   // ---------------------------------------------------------------------------
-  // Where-clause from current filters
+  // Where clause
   // ---------------------------------------------------------------------------
-  function buildWhere() {
-    const parts = [`${CONFIG.statusField} = ${sqlString(CONFIG.statusValue)}`];
-    const { common, diameter } = state.f;
+  const sizeActive = () => state.dmin > 0 || state.dmax < CONFIG.sliderMax;
+  const allFams = () => state.fams.size === FAMS.length;
 
-    if (common && state.selectedSpecies) {
-      parts.push(`${common} = ${sqlString(state.selectedSpecies)}`);
-    }
-
-    if (diameter) {
-      const lo = Number(els.dMin.value);
-      const hi = Number(els.dMax.value);
-      const hiIsOpen = hi >= state.sliderMax && state.openEnded;
-      if (lo > 0) parts.push(`${diameter} >= ${lo}`);
-      if (!hiIsOpen) parts.push(`${diameter} <= ${hi}`);
-    }
-    return parts.join(' AND ');
+  function genusClause(g) {
+    const S = state.f.scientific;
+    return `${S} = ${sql(g)} OR ${S} LIKE ${sql(g + ' %')}`;
   }
+  function famClause(i) {
+    if (i !== OTHER) return `(${FAMS[i].g.map(genusClause).join(' OR ')})`;
+    const known = FAMS.flatMap((f) => f.g).map(genusClause).join(' OR ');
+    return `(${state.f.scientific} IS NULL OR NOT (${known}))`;
+  }
+
+  function buildWhere({ species = true } = {}) {
+    const { diameter: D, common: C } = state.f;
+    const p = [`${CONFIG.statusField} = ${sql(CONFIG.statusValue)}`];
+    if (!allFams() && state.f.scientific) p.push(`(${[...state.fams].map(famClause).join(' OR ')})`);
+    if (sizeActive() && D) {
+      // Size filters only consider trees with a recorded, plausible diameter.
+      p.push(`${D} > 0`, `${D} <= ${CONFIG.maxDiameter}`);
+      if (state.dmin > 0) p.push(`${D} >= ${state.dmin}`);
+      if (state.dmax < CONFIG.sliderMax) p.push(`${D} < ${state.dmax + 1}`);
+    }
+    if (species && state.sp && C) p.push(`${C} = ${sql(state.sp)}`);
+    return p.join(' AND ');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Theme
+  // ---------------------------------------------------------------------------
+  const root = document.documentElement;
+  const darkMq = window.matchMedia('(prefers-color-scheme: dark)');
+  const isDark = () => root.dataset.theme === 'dark' || (root.dataset.theme !== 'light' && darkMq.matches);
+  let famColors = [], ink = '#1d2a22';
+  function readColors() {
+    const c = getComputedStyle(root);
+    famColors = FAMS.map((f) => c.getPropertyValue('--f-' + f.id).trim());
+    ink = c.getPropertyValue('--ink').trim();
+  }
+  readColors();
 
   // ---------------------------------------------------------------------------
   // Map
   // ---------------------------------------------------------------------------
-  const map = L.map('map', { preferCanvas: true, zoomControl: true }).setView(CONFIG.center, CONFIG.zoom);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  const map = L.map('map', { zoomControl: false, preferCanvas: true, attributionControl: false })
+    .setView(CONFIG.home.center, CONFIG.home.zoom);
+  L.control.attribution({ position: 'bottomright', prefix: '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>' }).addTo(map);
+  L.control.scale({ position: 'bottomleft', imperial: false, maxWidth: 110 }).addTo(map);
+
+  const tileUrl = () => `https://{s}.basemaps.cartocdn.com/${isDark() ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`;
+  const tiles = L.tileLayer(tileUrl(), {
+    subdomains: 'abcd',
+    maxZoom: 20,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
   }).addTo(map);
 
-  // Keep Leaflet's size in sync when the panel above/beside the map changes height.
-  new ResizeObserver(() => map.invalidateSize()).observe(map.getContainer());
-
-  const renderer = L.canvas({ padding: 0.3 });
+  const renderer = L.canvas({ padding: 0.2 });
   const treeLayer = L.layerGroup().addTo(map);
+  let markers = [];
+  let ring = null;
+  const canHover = window.matchMedia('(hover: hover)').matches;
 
-  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-  function display(field, value) {
-    if (value === null || value === undefined || value === '') return null;
-    const dom = state.domains[field];
-    if (dom && dom[value] !== undefined) return dom[value];
-    return value;
+  // Dot radius: ~2–8px by trunk diameter at street level, shrinking when zoomed out.
+  function radiusFor(d) {
+    const base = d ? Math.min(8, Math.max(2, 1.2 + Math.sqrt(d) * 0.75)) : 2;
+    const k = Math.max(0.45, Math.min(1, 1 - (17 - map.getZoom()) * 0.15));
+    return Math.max(1.2, base * k);
   }
 
-  function popupHtml(a) {
-    const f = state.f;
-    const get = (k) => (f[k] ? display(f[k], a[f[k]]) : null);
-    const common = get('common') || 'Unknown tree';
-    const sci = get('scientific');
-    const rows = [];
-    const diam = get('diameter');
-    const height = get('height');
-    const planted = get('planted');
-    if (diam !== null) rows.push(['Diameter', `${diam} ${CONFIG.diameterUnit}`]);
-    if (height !== null && Number(height) > 0) rows.push(['Height', `${height} ${CONFIG.heightUnit}`]);
-    if (get('address')) rows.push(['Location', get('address')]);
-    if (get('condition')) rows.push(['Condition', get('condition')]);
-    if (planted !== null) {
-      const d = typeof planted === 'number' ? new Date(planted) : null;
-      rows.push(['Planted', d && !isNaN(d) ? d.toLocaleDateString(undefined, { timeZone: 'UTC' }) : planted]);
-    }
-    if (get('unitId')) rows.push(['Tree ID', get('unitId')]);
-
-    return `<div class="tree-popup">
-      <h3>${esc(common)}</h3>
-      ${sci && sci !== common ? `<p class="sci">${esc(sci)}</p>` : ''}
-      <dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
-    </div>`;
-  }
-
-  function radiusFor(a) {
-    const d = Number(a[state.f.diameter]);
-    if (!d || d < 0) return 4;
-    return Math.max(3, Math.min(10, 3 + Math.sqrt(d)));
-  }
-
-  // ---------------------------------------------------------------------------
-  // Loading data
-  //
-  // Calls are made only when something changes:
-  //   filter change  -> 1 count + 1 list page
-  //   "Load more"    -> 1 list page
-  //   "Show on map"  -> 1 feature query (all matches, or the current area)
-  //   panning/zoom   -> nothing (a "Search this area" button appears instead)
-  // ---------------------------------------------------------------------------
-  const highlightLayer = L.layerGroup().addTo(map);
-  const ctl = { count: null, list: null, map: null };
-  let matchCount = null;
-  let listFeatures = [];
-  let mapMode = 'none'; // 'none' | 'all' | 'area'
-  let searched = null;  // {center, zoom} of the last area search
-
-  function fresh(key) {
-    ctl[key]?.abort();
-    ctl[key] = new AbortController();
-    return ctl[key].signal;
-  }
-
-  function showNotice(msg) {
-    els.notice.textContent = msg || '';
-    els.notice.hidden = !msg;
-  }
-
-  const mapLimit = () => Math.min(CONFIG.maxPerView, state.maxRecordCount);
-  const outFields = () => [state.objectIdField, ...new Set(Object.values(state.f))].join(',');
-  const isNarrow = () => window.matchMedia('(max-width: 720px)').matches;
-
-  function collapsePanelOnMobile() {
-    if (isNarrow() && !els.panel.classList.contains('collapsed')) {
-      els.toggle.click();
-      map.invalidateSize(); // apply the new map size before framing anything
-    }
-  }
-
-  function updateMapButton() {
-    const b = els.showMap;
-    if (matchCount === null) { b.disabled = true; b.textContent = 'Show on map'; return; }
-    if (matchCount === 0) { b.disabled = true; b.textContent = 'No trees to show'; return; }
-    b.disabled = false;
-    b.textContent = matchCount <= mapLimit()
-      ? `Show ${matchCount === 1 ? 'it' : `all ${fmt.format(matchCount)}`} on map`
-      : 'Show matches in this map area';
-  }
-
-  async function loadCount() {
-    const signal = fresh('count');
-    matchCount = null;
-    updateMapButton();
-    els.countTotal.textContent = '…';
-    try {
-      const { count } = await query({ where: buildWhere(), returnCountOnly: 'true' }, signal);
-      matchCount = count;
-      els.countTotal.textContent = fmt.format(count);
-      updateMapButton();
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      els.countTotal.textContent = '–';
-      showNotice(`Couldn't load the tree count: ${e.message}`);
-    }
-  }
-
-  function treeSubtitle(a) {
-    const f = state.f;
-    const bits = [];
-    if (!state.selectedSpecies && f.common && a[f.common]) bits.push(display(f.common, a[f.common]));
-    if (f.diameter && Number(a[f.diameter]) > 0) bits.push(`${a[f.diameter]} ${CONFIG.diameterUnit}`);
-    if (f.planted && typeof a[f.planted] === 'number') bits.push(`planted ${new Date(a[f.planted]).getUTCFullYear()}`);
-    return bits.join(' · ');
-  }
-
-  function renderListRows(features, startIdx) {
-    const html = features.map((ft, i) => {
-      const a = ft.attributes;
-      const title = (state.f.address && a[state.f.address]) || (state.f.unitId && a[state.f.unitId]) || 'Tree';
-      return `<li><button type="button" class="tree-row" data-i="${startIdx + i}"${ft.geometry ? '' : ' disabled'}>
-          <span class="tree-title">${esc(title)}</span>
-          <span class="tree-sub">${esc(treeSubtitle(a))}</span>
-        </button></li>`;
-    }).join('');
-    els.list2.insertAdjacentHTML('beforeend', html);
-  }
-
-  async function loadList(reset) {
-    const signal = reset ? fresh('list') : ctl.list?.signal;
-    if (reset) {
-      listFeatures = [];
-      els.list2.innerHTML = '';
-      els.listStatus.textContent = 'Loading…';
-      els.loadMore.hidden = true;
-    } else {
-      els.loadMore.disabled = true;
-    }
-    const order = state.f.diameter
-      ? `${state.f.diameter} DESC, ${state.objectIdField} ASC`
-      : `${state.objectIdField} ASC`;
-    try {
-      const r = await query({
-        where: buildWhere(),
-        outFields: outFields(),
-        returnGeometry: 'true',
-        outSR: '4326',
-        orderByFields: order,
-        resultOffset: String(listFeatures.length),
-        resultRecordCount: String(CONFIG.listPageSize),
-      }, signal);
-      const feats = r.features || [];
-      renderListRows(feats, listFeatures.length);
-      listFeatures.push(...feats);
-      const more = r.exceededTransferLimit || feats.length === CONFIG.listPageSize;
-      els.loadMore.hidden = !more;
-      els.loadMore.disabled = false;
-      els.listStatus.textContent = listFeatures.length
-        ? `Showing ${fmt.format(listFeatures.length)}${matchCount ? ` of ${fmt.format(matchCount)}` : ''}, largest first`
-        : 'No trees match these filters.';
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      els.loadMore.disabled = false;
-      els.listStatus.textContent = `Couldn't load the list: ${e.message}`;
-    }
-  }
-
-  function markerFor(feat, style) {
-    const g = feat.geometry;
-    return L.circleMarker([g.y, g.x], {
-      renderer,
-      radius: radiusFor(feat.attributes),
-      color: '#1f5c38',
-      weight: 1,
-      fillColor: '#3fa66a',
-      fillOpacity: 0.75,
-      ...style,
-    }).bindPopup(() => popupHtml(feat.attributes), { maxWidth: 260 });
-  }
-
-  function clearMap() {
-    ctl.map?.abort();
+  function drawTrees(feats) {
     treeLayer.clearLayers();
-    highlightLayer.clearLayers();
-    mapMode = 'none';
-    els.searchArea.hidden = true;
-    els.mapStatus.textContent = '';
+    markers = [];
+    // Largest first, so smaller trees sit on top and stay clickable.
+    const sorted = feats
+      .filter((ft) => ft.geometry && ft.geometry.x != null)
+      .map((ft) => ({ ft, d: diamOf(ft.attributes) }))
+      .sort((a, b) => (b.d ?? 0) - (a.d ?? 0));
+    for (const { ft, d } of sorted) {
+      const a = ft.attributes;
+      const fam = famOfSci(attr(a, state.f.scientific));
+      const m = L.circleMarker([ft.geometry.y, ft.geometry.x], {
+        renderer,
+        radius: radiusFor(d),
+        stroke: false,
+        fillColor: famColors[fam],
+        fillOpacity: 0.6,
+        bubblingMouseEvents: false,
+      });
+      m.tree = { ft, d, fam };
+      m.on('click', () => select(ft));
+      if (canHover) {
+        const name = attr(a, state.f.common) || 'Unknown species';
+        m.bindTooltip(`${esc(name)} · ${d ? fmtIn(d) + '″' : 'diameter not recorded'}`,
+          { className: 'tip', direction: 'top', offset: [0, -4], opacity: 1 });
+      }
+      m.addTo(treeLayer);
+      markers.push(m);
+    }
+    ring?.bringToFront();
   }
 
-  function envelopeParams() {
+  function restyle() {
+    for (const m of markers) m.setStyle({ radius: radiusFor(m.tree.d), fillColor: famColors[m.tree.fam] });
+    if (ring && state.sel) ring.setStyle({ radius: radiusFor(diamOf(state.sel.attributes)) + 4, color: ink });
+  }
+  map.on('zoomend', restyle);
+
+  // Map overlay message (loading / zoom in / empty / error).
+  function setMsg(text) {
+    $('msg').textContent = text || '';
+    $('msg').hidden = !text;
+  }
+
+  function envelope() {
     const b = map.getBounds();
     return {
-      geometry: JSON.stringify({
-        xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth(),
-        spatialReference: { wkid: 4326 },
-      }),
+      geometry: JSON.stringify({ xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth(), spatialReference: { wkid: 4326 } }),
       geometryType: 'esriGeometryEnvelope',
       inSR: '4326',
       spatialRel: 'esriSpatialRelIntersects',
     };
   }
 
-  async function showOnMap(mode) {
-    const signal = fresh('map');
-    els.searchArea.hidden = true;
-    els.mapStatus.textContent = 'Loading trees onto the map…';
-    showNotice('');
+  const outFields = () => [state.oid, ...new Set(Object.values(state.f))].join(',');
+
+  // Load the matching trees inside the visible map area.
+  let ready = false; // set once the layer's fields are known
+  async function loadView() {
+    if (!ready) return;
+    const signal = fresh('view');
+    const where = buildWhere();
+    const env = envelope();
+    const slow = setTimeout(() => setMsg('Loading trees…'), 400);
     try {
-      const r = await query({
-        where: buildWhere(),
-        ...(mode === 'area' ? envelopeParams() : {}),
+      const { count } = await query({ where, ...env, returnCountOnly: 'true' }, signal);
+      if (count > CONFIG.areaLimit) {
+        drawTrees([]);
+        setMsg('Zoom in to see individual trees');
+        return;
+      }
+      const feats = count ? await queryAll({
+        where, ...env,
         outFields: outFields(),
         returnGeometry: 'true',
         outSR: '4326',
-        resultRecordCount: String(mapLimit()),
-      }, signal);
-      treeLayer.clearLayers();
-      highlightLayer.clearLayers();
-      const feats = (r.features || []).filter((ft) => ft.geometry && ft.geometry.x != null);
-      for (const ft of feats) markerFor(ft).addTo(treeLayer);
-      mapMode = mode;
-      collapsePanelOnMobile();
-      searched = { center: map.getCenter(), zoom: map.getZoom() };
+        orderByFields: state.oid,
+        resultRecordCount: String(state.maxRec),
+      }, signal, CONFIG.areaLimit) : [];
+      drawTrees(feats);
+      setMsg(count ? '' : 'No matching trees in this area');
 
-      const n = fmt.format(feats.length);
-      els.mapStatus.textContent = mode === 'all'
-        ? `${n} on the map`
-        : `${n} on the map in this area`;
-      if (r.exceededTransferLimit) {
-        showNotice(`Only the first ${n} are drawn. Zoom in and use “Search this area” to see more.`);
-      } else if (mode === 'area' && !feats.length) {
-        showNotice('No matching trees in this area. Zoom out or move the map, then search again.');
-      }
-      if (mode === 'all' && feats.length) {
-        map.fitBounds(L.latLngBounds(feats.map((ft) => [ft.geometry.y, ft.geometry.x])), { padding: [30, 30], maxZoom: 17 });
+      // Close the card if the selected tree is in view but no longer matches.
+      if (state.sel) {
+        const id = attr(state.sel.attributes, state.oid);
+        const g = state.sel.geometry;
+        const inView = map.getBounds().contains([g.y, g.x]);
+        if (inView && !feats.some((ft) => attr(ft.attributes, state.oid) === id)) select(null);
       }
     } catch (e) {
       if (e.name === 'AbortError') return;
-      els.mapStatus.textContent = '';
-      showNotice(`Couldn't load trees onto the map: ${e.message}`);
+      setMsg("Couldn't load trees for this area. Move the map to try again.");
+    } finally {
+      clearTimeout(slow);
     }
   }
 
-  function focusTree(feat) {
-    highlightLayer.clearLayers();
-    const m = markerFor(feat, { color: '#7a3b00', weight: 3, fillColor: '#f0a030', fillOpacity: 0.95 }).addTo(highlightLayer);
-    collapsePanelOnMobile();
-    map.setView(m.getLatLng(), Math.max(map.getZoom(), 17));
-    m.openPopup();
+  let viewTimer;
+  map.on('moveend', () => { clearTimeout(viewTimer); viewTimer = setTimeout(loadView, 300); });
+
+  $('zin').onclick = () => map.zoomIn();
+  $('zout').onclick = () => map.zoomOut();
+  $('zfit').onclick = () => map.setView(CONFIG.home.center, CONFIG.home.zoom);
+  new ResizeObserver(() => map.invalidateSize()).observe($('main'));
+
+  // ---------------------------------------------------------------------------
+  // Detail card
+  // ---------------------------------------------------------------------------
+  function select(ft) {
+    state.sel = ft || null;
+    ring?.remove();
+    ring = null;
+    const card = $('card');
+    if (!ft) { card.hidden = true; return; }
+
+    const a = ft.attributes;
+    const { y: lat, x: lng } = ft.geometry;
+    const d = diamOf(a);
+    const sci = attr(a, state.f.scientific);
+    const addr = attr(a, state.f.address);
+    const planted = attr(a, state.f.planted);
+    const rows = [
+      ['Trunk', d ? `${fmtIn(d)} in (${Math.round(d * 2.54)} cm)` : 'Not recorded'],
+      ['Family', FAMS[famOfSci(sci)].name],
+    ];
+    if (addr) rows.push(['Address', addr]);
+    if (typeof planted === 'number') rows.push(['Planted', new Date(planted).toLocaleDateString(undefined, { timeZone: 'UTC' })]);
+    rows.push(['Location', `${lat.toFixed(5)}, ${lng.toFixed(5)}`]);
+
+    $('cname').textContent = attr(a, state.f.common) || 'Unknown species';
+    $('cgen').textContent = sci || 'Scientific name not recorded';
+    $('cdl').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
+    $('clink').href = `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(5)},${lng.toFixed(5)}`;
+    card.hidden = false;
+
+    ring = L.circleMarker([lat, lng], {
+      renderer, radius: radiusFor(d) + 4, color: ink, weight: 2, fill: false, interactive: false,
+    }).addTo(map);
+  }
+  $('cardx').onclick = () => select(null);
+  map.on('click', () => select(null));
+
+  // ---------------------------------------------------------------------------
+  // Sidebar: count, family chips, size presets, slider, species list
+  // ---------------------------------------------------------------------------
+  function renderCount() {
+    const n = state.match;
+    $('n').textContent = n == null ? '…' : fmt.format(n);
+    if (state.total == null) return;
+    $('nlabel').textContent = n === state.total
+      ? 'trees, all of them'
+      : `of ${fmt.format(state.total)} trees match`;
   }
 
-  function debounce(fn, ms) {
-    let t;
-    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-  }
-
-  const refreshAll = debounce(() => {
-    clearMap();
-    showNotice('');
-    loadCount().then(() => {
-      // Re-render the status line now that the total is known.
-      if (listFeatures.length) {
-        els.listStatus.textContent = `Showing ${fmt.format(listFeatures.length)} of ${fmt.format(matchCount ?? 0)}, largest first`;
-      }
+  const famsEl = $('fams');
+  function buildChips(counts) {
+    famsEl.innerHTML = '';
+    FAMS.forEach((f, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.style.setProperty('--c', `var(--f-${f.id})`);
+      b.innerHTML = `<i></i>${esc(f.name)} <small>${fmt.format(counts[i])}</small>`;
+      b.onclick = () => {
+        if (allFams()) state.fams = new Set([i]);
+        else if (state.fams.has(i)) {
+          state.fams.delete(i);
+          if (!state.fams.size) state.fams = new Set(FAMS.map((_, j) => j));
+        } else state.fams.add(i);
+        state.sp = null;
+        changed();
+      };
+      famsEl.appendChild(b);
     });
-    loadList(true);
-  }, 250);
+  }
+  $('allfam').hidden = false;
+  $('allfam').onclick = () => { state.fams = new Set(FAMS.map((_, i) => i)); state.sp = null; changed(); };
 
-  els.showMap.addEventListener('click', () => {
-    showOnMap(matchCount !== null && matchCount <= mapLimit() ? 'all' : 'area');
+  const sizesEl = $('sizes');
+  SIZES.forEach((s) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = `${s.n}<small>${s.l}</small>`;
+    b.onclick = () => {
+      if (state.dmin === s.r[0] && state.dmax === s.r[1]) { state.dmin = 0; state.dmax = CONFIG.sliderMax; }
+      else { state.dmin = s.r[0]; state.dmax = s.r[1]; }
+      $('dmin').value = state.dmin;
+      $('dmax').value = state.dmax;
+      changed();
+    };
+    s.el = b;
+    sizesEl.appendChild(b);
   });
-  els.searchArea.addEventListener('click', () => showOnMap('area'));
-  els.loadMore.addEventListener('click', () => loadList(false));
-  els.list2.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tree-row');
-    if (btn) focusTree(listFeatures[Number(btn.dataset.i)]);
-  });
-  map.on('moveend', () => {
-    // Offer a new search only once the user has really moved away from the searched view.
-    if (mapMode !== 'area' || !searched) return;
-    const moved = map.latLngToContainerPoint(searched.center).distanceTo(map.getSize().divideBy(2));
-    if (moved > 60 || map.getZoom() !== searched.zoom) els.searchArea.hidden = false;
-  });
+  $('dmin').oninput = (e) => { state.dmin = Math.min(+e.target.value, state.dmax); e.target.value = state.dmin; changed(); };
+  $('dmax').oninput = (e) => { state.dmax = Math.max(+e.target.value, state.dmin); e.target.value = state.dmax; changed(); };
 
-  // ---------------------------------------------------------------------------
-  // Species combobox
-  // ---------------------------------------------------------------------------
-  let activeIdx = -1;
-  let visible = [];
+  function renderControls() {
+    [...famsEl.children].forEach((b, i) => b.setAttribute('aria-pressed', state.fams.has(i) ? 'true' : 'false'));
+    SIZES.forEach((s) => {
+      const on = state.dmin === s.r[0] && state.dmax === s.r[1];
+      s.el.classList.toggle('on', on);
+      s.el.setAttribute('aria-pressed', String(on));
+    });
+    const max = CONFIG.sliderMax;
+    $('rangeout').textContent = sizeActive() ? `${state.dmin}–${state.dmax >= max ? max + '+' : state.dmax} in` : 'Any size';
+    $('fill').style.left = `${(state.dmin / max) * 100}%`;
+    $('fill').style.width = `${((state.dmax - state.dmin) / max) * 100}%`;
+    $('clearsp').hidden = !state.sp;
+  }
+
+  $('q').oninput = (e) => { state.q = e.target.value.trim().toLowerCase(); state.showAll = false; renderList(); };
+  $('clearsp').onclick = () => { state.sp = null; changed({ species: false }); };
+  $('more').onclick = () => { state.showAll = !state.showAll; renderList(); };
 
   function renderList() {
-    const q = els.input.value.trim().toLowerCase();
-    visible = q ? state.species.filter((s) => s.name.toLowerCase().includes(q)) : state.species;
-    const items = visible.slice(0, 200);
-    activeIdx = Math.min(activeIdx, items.length - 1);
-    els.list.innerHTML = items.length
-      ? items.map((s, i) =>
-          `<li role="option" id="opt-${i}" data-i="${i}" aria-selected="${i === activeIdx}">
-             <span>${esc(s.name)}</span><span class="n">${fmt.format(s.count)}</span>
-           </li>`).join('')
-      : '<li class="empty">No matching tree types</li>';
-    els.input.setAttribute('aria-activedescendant', activeIdx >= 0 ? `opt-${activeIdx}` : '');
-    els.list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+    let rows = speciesRows;
+    if (state.q) {
+      rows = rows.filter((r) => `${r.name} ${speciesInfo.get(r.name)?.sci || ''}`.toLowerCase().includes(state.q));
+    }
+    const max = rows.length ? Math.max(...rows.map((r) => r.count)) : 1;
+    const lim = state.showAll || state.q ? rows.length : CONFIG.listTop;
+    const list = $('list');
+    list.innerHTML = '';
+    if (!rows.length) {
+      list.innerHTML = '<p>No species match. Try a different search or widen the filters.</p>';
+    }
+    for (const r of rows.slice(0, lim)) {
+      const info = speciesInfo.get(r.name);
+      const fam = info ? info.fam : OTHER;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sp' + (state.sp === r.name ? ' on' : '');
+      b.setAttribute('aria-pressed', String(state.sp === r.name));
+      b.style.setProperty('--c', `var(--f-${FAMS[fam].id})`);
+      b.innerHTML = `<i></i><span></span><em>${fmt.format(r.count)}</em><div class="bar"><b style="width:${(r.count / max) * 100}%"></b></div>`;
+      b.querySelector('span').textContent = r.name;
+      b.title = r.name + (info?.sci ? ` (${info.sci})` : '');
+      b.onclick = () => { state.sp = state.sp === r.name ? null : r.name; changed({ species: false }); };
+      list.appendChild(b);
+    }
+    const more = $('more');
+    more.hidden = !!state.q || rows.length <= CONFIG.listTop;
+    more.textContent = state.showAll ? `Show top ${CONFIG.listTop}` : `Show all ${fmt.format(rows.length)} species`;
   }
 
-  function openList() {
-    els.list.hidden = false;
-    els.input.setAttribute('aria-expanded', 'true');
+  // ---------------------------------------------------------------------------
+  // Data refresh
+  // ---------------------------------------------------------------------------
+  async function loadCount() {
+    const signal = fresh('count');
+    state.match = null;
+    renderCount();
+    try {
+      const noFilters = allFams() && !sizeActive() && !state.sp;
+      state.match = noFilters && state.total != null
+        ? state.total
+        : (await query({ where: buildWhere(), returnCountOnly: 'true' }, signal)).count;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      $('nlabel').textContent = "Couldn't count trees";
+    }
+    renderCount();
+  }
+
+  async function loadSpecies() {
+    const signal = fresh('species');
+    const C = state.f.common;
+    if (!C) return;
+    try {
+      const feats = await queryAll({
+        where: `${buildWhere({ species: false })} AND ${C} IS NOT NULL`,
+        groupByFieldsForStatistics: C,
+        outStatistics: JSON.stringify([{ statisticType: 'count', onStatisticField: state.oid, outStatisticFieldName: 'n' }]),
+        orderByFields: 'n DESC',
+      }, signal);
+      speciesRows = feats
+        .map((ft) => ({ name: attr(ft.attributes, C), count: attr(ft.attributes, 'n') }))
+        .filter((r) => r.name && String(r.name).trim());
+      renderList();
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      $('list').innerHTML = "<p>Couldn't load species. Try again in a moment.</p>";
+    }
+  }
+
+  let refreshTimer;
+  function changed({ species = true } = {}) {
+    renderControls();
     renderList();
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      loadCount();
+      if (species) loadSpecies();
+      loadView();
+    }, 250);
   }
 
-  function closeList() {
-    els.list.hidden = true;
-    els.input.setAttribute('aria-expanded', 'false');
-    activeIdx = -1;
+  // Theme switches recolor the dots and swap the basemap.
+  function onTheme() {
+    readColors();
+    tiles.setUrl(tileUrl());
+    restyle();
   }
-
-  function selectSpecies(name) {
-    state.selectedSpecies = name;
-    els.input.value = name || '';
-    els.clear.hidden = !name;
-    const s = state.species.find((x) => x.name === name);
-    els.speciesHint.textContent = name ? `${fmt.format(s?.count ?? 0)} in-service trees citywide` : 'All tree types';
-    closeList();
-    refreshAll();
-  }
-
-  els.input.addEventListener('focus', openList);
-  els.input.addEventListener('input', () => {
-    activeIdx = -1;
-    openList();
-    if (!els.input.value.trim() && state.selectedSpecies) selectSpecies(null);
-  });
-  els.input.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (els.list.hidden) openList();
-      activeIdx = Math.min(activeIdx + 1, Math.min(visible.length, 200) - 1);
-      renderList();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      activeIdx = Math.max(activeIdx - 1, 0);
-      renderList();
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const pick = visible[activeIdx >= 0 ? activeIdx : 0];
-      if (pick) selectSpecies(pick.name);
-    } else if (e.key === 'Escape') {
-      closeList();
-      els.input.value = state.selectedSpecies || '';
-    }
-  });
-  els.input.addEventListener('blur', () => {
-    // Restore the committed selection if the user typed without choosing.
-    setTimeout(() => {
-      if (document.activeElement === els.input) return;
-      closeList();
-      els.input.value = state.selectedSpecies || '';
-    }, 0);
-  });
-  // mousedown keeps focus in the input so the click registers before blur.
-  els.list.addEventListener('mousedown', (e) => e.preventDefault());
-  els.list.addEventListener('click', (e) => {
-    const li = e.target.closest('li[data-i]');
-    if (li) selectSpecies(visible[Number(li.dataset.i)].name);
-  });
-  els.clear.addEventListener('click', () => { selectSpecies(null); els.input.focus(); });
-
-  // ---------------------------------------------------------------------------
-  // Diameter range slider
-  // ---------------------------------------------------------------------------
-  function updateRangeUi(changed) {
-    let lo = Number(els.dMin.value);
-    let hi = Number(els.dMax.value);
-    if (lo > hi) {
-      if (changed === els.dMin) { els.dMin.value = hi; lo = hi; } else { els.dMax.value = lo; hi = lo; }
-    }
-    const max = state.sliderMax;
-    els.dFill.style.left = `${(lo / max) * 100}%`;
-    els.dFill.style.right = `${100 - (hi / max) * 100}%`;
-    // Keep the lower thumb reachable when both thumbs sit at the top end.
-    els.dMin.style.zIndex = lo >= max - 1 ? 3 : 2;
-
-    const u = CONFIG.diameterUnit;
-    const hiOpen = hi >= max && state.openEnded;
-    if (lo === 0 && hiOpen) els.dReadout.textContent = 'Any size';
-    else if (hiOpen) els.dReadout.textContent = `${lo} ${u} or larger`;
-    else if (lo === 0) els.dReadout.textContent = `Up to ${hi} ${u}`;
-    else els.dReadout.textContent = `${lo}–${hi} ${u}`;
-    els.dMin.setAttribute('aria-valuetext', `${lo} ${u}`);
-    els.dMax.setAttribute('aria-valuetext', hiOpen ? `${hi} ${u} or larger` : `${hi} ${u}`);
-  }
-
-  for (const el of [els.dMin, els.dMax]) {
-    el.addEventListener('input', () => updateRangeUi(el));
-    el.addEventListener('change', refreshAll);
-  }
-
-  els.reset.addEventListener('click', () => {
-    els.dMin.value = 0;
-    els.dMax.value = state.sliderMax;
-    updateRangeUi();
-    selectSpecies(null);
-  });
-
-  // Mobile: collapse/expand the filter panel.
-  els.toggle.addEventListener('click', () => {
-    const collapsed = els.panel.classList.toggle('collapsed');
-    els.toggle.setAttribute('aria-expanded', String(!collapsed));
-  });
+  darkMq.addEventListener?.('change', onTheme);
+  new MutationObserver(onTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 
   // ---------------------------------------------------------------------------
   // Startup
   // ---------------------------------------------------------------------------
   async function init() {
+    renderControls();
     let meta;
     try {
       meta = await arcgis('', {});
     } catch (e) {
-      els.input.placeholder = 'Unavailable';
-      showNotice(`Couldn't reach the SDOT Trees service: ${e.message}`);
+      $('nlabel').textContent = "Couldn't reach the city's tree data. Try reloading.";
       return;
     }
-
     state.f = resolveFields(meta.fields || []);
-    state.objectIdField = meta.objectIdField || (meta.fields || []).find((f) => f.type === 'esriFieldTypeOID')?.name || 'OBJECTID';
-    state.maxRecordCount = meta.maxRecordCount || 2000;
-    for (const fld of meta.fields || []) {
-      if (fld.domain?.type === 'codedValue') {
-        state.domains[fld.name] = Object.fromEntries(fld.domain.codedValues.map((c) => [c.code, c.name]));
+    state.oid = meta.objectIdField || (meta.fields || []).find((f) => f.type === 'esriFieldTypeOID')?.name || 'OBJECTID';
+    state.maxRec = meta.maxRecordCount || 2000;
+    console.info('[trees] resolved fields', state.f);
+    ready = true;
+
+    const base = `${CONFIG.statusField} = ${sql(CONFIG.statusValue)}`;
+    const C = state.f.common, S = state.f.scientific, D = state.f.diameter;
+    const groupBy = [C, S].filter(Boolean);
+
+    const [groups, largest] = await Promise.all([
+      groupBy.length ? queryAll({
+        where: base,
+        groupByFieldsForStatistics: groupBy.join(','),
+        outStatistics: JSON.stringify([{ statisticType: 'count', onStatisticField: state.oid, outStatisticFieldName: 'n' }]),
+        orderByFields: 'n DESC',
+      }).catch(() => []) : [],
+      D ? query({
+        where: `${base} AND ${D} > 0 AND ${D} <= ${CONFIG.maxDiameter}`,
+        outFields: outFields(),
+        returnGeometry: 'true',
+        outSR: '4326',
+        orderByFields: `${D} DESC`,
+        resultRecordCount: '1',
+      }).then((r) => r.features?.[0]).catch(() => null) : null,
+    ]);
+
+    // Totals, family counts, and each species' most common scientific name.
+    const famCounts = FAMS.map(() => 0);
+    const bySpecies = new Map();
+    let total = 0;
+    for (const ft of groups) {
+      const a = ft.attributes;
+      const n = Number(attr(a, 'n')) || 0;
+      const name = C ? attr(a, C) : null;
+      const sci = S ? attr(a, S) : null;
+      total += n;
+      famCounts[famOfSci(sci)] += n;
+      if (name && String(name).trim()) {
+        const s = bySpecies.get(name) || { count: 0, best: 0, sci: null };
+        s.count += n;
+        if (n > s.best) { s.best = n; s.sci = sci; }
+        bySpecies.set(name, s);
       }
     }
-    console.info('[trees] resolved fields', state.f);
+    for (const [name, s] of bySpecies) speciesInfo.set(name, { sci: s.sci, fam: famOfSci(s.sci) });
 
-    const base = `${CONFIG.statusField} = ${sqlString(CONFIG.statusValue)}`;
-    const tasks = [];
-
-    // Species list: distinct common names with counts, most common first.
-    if (state.f.common) {
-      tasks.push(query({
-        where: `${base} AND ${state.f.common} IS NOT NULL`,
-        groupByFieldsForStatistics: state.f.common,
-        outStatistics: JSON.stringify([{ statisticType: 'count', onStatisticField: state.objectIdField, outStatisticFieldName: 'n' }]),
-        orderByFields: 'n DESC',
-      }).then((r) => {
-        state.species = (r.features || [])
-          .map((ft) => {
-            const a = ft.attributes;
-            const key = Object.keys(a).find((k) => k.toUpperCase() === state.f.common.toUpperCase());
-            const nKey = Object.keys(a).find((k) => k.toLowerCase() === 'n');
-            return { name: a[key], count: a[nKey] };
-          })
-          .filter((s) => s.name && String(s.name).trim());
-        els.input.disabled = false;
-        els.input.placeholder = `Search ${fmt.format(state.species.length)} tree types…`;
-      }).catch((e) => {
-        els.input.placeholder = 'Unavailable';
-        showNotice(`Couldn't load tree types: ${e.message}`);
-      }));
+    if (groups.length) {
+      state.total = state.match = total;
+      speciesRows = [...bySpecies].map(([name, s]) => ({ name, count: s.count })).sort((a, b) => b.count - a.count);
     } else {
-      els.input.placeholder = 'Not available';
-      els.speciesHint.textContent = 'No common-name field found on this layer.';
+      loadCount().then(() => { state.total = state.match; renderCount(); });
+      loadSpecies();
     }
+    if (S) buildChips(famCounts);
+    else famsEl.closest('section').hidden = true;
+    renderControls();
+    renderCount();
+    renderList();
 
-    // Diameter bounds.
-    if (state.f.diameter) {
-      tasks.push(query({
-        where: `${base} AND ${state.f.diameter} > 0`,
-        outStatistics: JSON.stringify([{ statisticType: 'max', onStatisticField: state.f.diameter, outStatisticFieldName: 'dmax' }]),
-      }).then((r) => {
-        const a = r.features?.[0]?.attributes || {};
-        const dmax = Number(a.dmax ?? a.DMAX);
-        if (dmax > 0) {
-          state.sliderMax = Math.max(5, Math.min(Math.ceil(dmax), CONFIG.sliderCap));
-        }
-      }).catch(() => { /* keep defaults */ }));
+    // Open in a useful state: the largest recorded tree, selected.
+    if (largest?.geometry) {
+      map.setView([largest.geometry.y, largest.geometry.x], CONFIG.detailZoom);
+      select(largest);
     } else {
-      els.dMin.disabled = els.dMax.disabled = true;
-      els.dReadout.textContent = 'No diameter field found on this layer.';
+      loadView();
     }
-
-    await Promise.all(tasks);
-    els.dMin.max = els.dMax.max = state.sliderMax;
-    els.dMax.value = state.sliderMax;
-    updateRangeUi();
-    refreshAll();
   }
 
-  updateRangeUi();
   init();
 })();

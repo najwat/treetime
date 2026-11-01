@@ -2,75 +2,75 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Seattle Street Trees</title>
-  <meta name="description" content="Explore Seattle's in-service street trees by species and trunk diameter.">
+  <meta name="description" content="Explore every in-service street tree in Seattle by tree family, trunk diameter and species.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <h1>Seattle Street Trees</h1>
-    <button id="toggle-panel" class="toggle-panel" type="button" aria-expanded="true" aria-controls="panel">Filters</button>
-  </header>
+<div class="app">
+  <aside>
+    <div class="top">
+      <header>
+        <h1>Seattle Street Trees</h1>
+        <p>Every in-service street tree in the City of Seattle's SDOT inventory.</p>
+      </header>
+      <div class="count" aria-live="polite"><b id="n">–</b><span id="nlabel">Loading trees…</span></div>
+    </div>
 
-  <main class="layout">
-    <aside id="panel" class="panel">
-      <form id="filters" autocomplete="off" onsubmit="return false">
-        <div class="field">
-          <label for="species-input">Tree type</label>
-          <div class="combo" id="species-combo">
-            <input id="species-input" type="text" role="combobox"
-                   aria-autocomplete="list" aria-expanded="false" aria-controls="species-list"
-                   placeholder="Loading tree types…" disabled>
-            <button id="species-clear" class="combo-clear" type="button" aria-label="Clear tree type" hidden>×</button>
-            <ul id="species-list" class="combo-list" role="listbox" hidden></ul>
-          </div>
-          <p class="hint" id="species-hint">All tree types</p>
-        </div>
-
-        <div class="field">
-          <span class="label" id="diam-label">Trunk diameter</span>
-          <div class="range" aria-labelledby="diam-label">
-            <input id="diam-min" type="range" min="0" max="60" step="1" value="0" aria-label="Minimum diameter">
-            <input id="diam-max" type="range" min="0" max="60" step="1" value="60" aria-label="Maximum diameter">
-            <div class="range-track"><div class="range-fill" id="diam-fill"></div></div>
-          </div>
-          <p class="hint" id="diam-readout">Any size</p>
-        </div>
-
-        <button id="reset" class="reset" type="button">Reset filters</button>
-      </form>
-
-      <section class="stats" aria-live="polite">
-        <p class="count"><span id="count-total">–</span> <span class="count-label">matching trees in Seattle</span></p>
-        <button id="show-map" class="primary" type="button" disabled>Show on map</button>
-        <p class="sub" id="map-status"></p>
-        <p class="notice" id="notice" hidden></p>
+    <div class="rest">
+      <section>
+        <p class="label">Tree family <button class="clear" id="allfam" type="button" hidden>Show all</button></p>
+        <div class="chips" id="fams"></div>
       </section>
 
-      <section class="results" aria-labelledby="results-head">
-        <h2 id="results-head">Matching trees</h2>
-        <p class="hint" id="list-status" aria-live="polite"></p>
-        <ol id="tree-list" class="tree-list"></ol>
-        <button id="load-more" class="reset" type="button" hidden>Load more</button>
+      <section>
+        <p class="label">Trunk diameter <output id="rangeout">Any size</output></p>
+        <div class="sizes" id="sizes"></div>
+        <div class="range">
+          <div class="track"><div class="fill" id="fill"></div></div>
+          <input type="range" id="dmin" min="0" max="72" value="0" step="1" aria-label="Minimum trunk diameter in inches">
+          <input type="range" id="dmax" min="0" max="72" value="72" step="1" aria-label="Maximum trunk diameter in inches">
+        </div>
       </section>
 
-      <p class="source">
-        Data: <a href="https://data-seattlecitygis.opendata.arcgis.com/" target="_blank" rel="noopener">SDOT Trees</a>
-        (City of Seattle), in-service trees only.
-      </p>
-    </aside>
+      <section>
+        <p class="label">Species <button class="clear" id="clearsp" type="button" hidden>Clear species</button></p>
+        <input class="search" id="q" type="search" placeholder="Search, e.g. ginkgo, oak, cherry" autocomplete="off" aria-label="Search species">
+        <div class="list" id="list"></div>
+        <button class="more" id="more" type="button" hidden></button>
+      </section>
 
-    <div class="map-wrap">
-      <div id="map" class="map" role="region" aria-label="Map of trees"></div>
-      <button id="search-area" class="map-float" type="button" hidden>Search this area</button>
+      <footer>
+        Data: <a href="https://data-seattlecitygis.opendata.arcgis.com/datasets/SeattleCityGIS::sdot-trees" target="_blank" rel="noopener">SDOT Trees</a>,
+        City of Seattle open data, loaded live. Diameter is the city's recorded trunk diameter in inches; values over 80″ are treated as not recorded.
+        Park and private-yard trees aren't in this dataset.
+      </footer>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div id="map" aria-label="Map of street trees. Drag to pan, scroll or use the buttons to zoom, click a dot for details."></div>
+    <div class="compass" aria-hidden="true"><svg width="12" height="14" viewBox="0 0 12 14"><path d="M6 0 L11 14 L6 10 L1 14 Z" fill="currentColor"/></svg>N</div>
+    <div class="tools"><button id="zin" type="button" aria-label="Zoom in">+</button><button id="zout" type="button" aria-label="Zoom out">−</button><button id="zfit" type="button" aria-label="Reset view" class="fit">⤢</button></div>
+    <div class="msg" id="msg" role="status" hidden></div>
+    <div class="card" id="card" hidden>
+      <button class="x" id="cardx" type="button" aria-label="Close">×</button>
+      <h2 id="cname"></h2>
+      <div class="gen" id="cgen"></div>
+      <dl id="cdl"></dl>
+      <a id="clink" href="#" target="_blank" rel="noopener">Open in Google Maps ↗</a>
     </div>
   </main>
+</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="app.js"></script>
 </body>
 </html>
