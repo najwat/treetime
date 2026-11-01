@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seattle Street Trees</title>
+  <meta name="description" content="Explore Seattle's in-service street trees by species and trunk diameter.">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Seattle Street Trees</h1>
+    <button id="toggle-panel" class="toggle-panel" type="button" aria-expanded="true" aria-controls="panel">Filters</button>
+  </header>
+
+  <main class="layout">
+    <aside id="panel" class="panel">
+      <form id="filters" autocomplete="off" onsubmit="return false">
+        <div class="field">
+          <label for="species-input">Tree type</label>
+          <div class="combo" id="species-combo">
+            <input id="species-input" type="text" role="combobox"
+                   aria-autocomplete="list" aria-expanded="false" aria-controls="species-list"
+                   placeholder="Loading tree types…" disabled>
+            <button id="species-clear" class="combo-clear" type="button" aria-label="Clear tree type" hidden>×</button>
+            <ul id="species-list" class="combo-list" role="listbox" hidden></ul>
+          </div>
+          <p class="hint" id="species-hint">All tree types</p>
+        </div>
+
+        <div class="field">
+          <span class="label" id="diam-label">Trunk diameter</span>
+          <div class="range" aria-labelledby="diam-label">
+            <input id="diam-min" type="range" min="0" max="60" step="1" value="0" aria-label="Minimum diameter">
+            <input id="diam-max" type="range" min="0" max="60" step="1" value="60" aria-label="Maximum diameter">
+            <div class="range-track"><div class="range-fill" id="diam-fill"></div></div>
+          </div>
+          <p class="hint" id="diam-readout">Any size</p>
+        </div>
+
+        <button id="reset" class="reset" type="button">Reset filters</button>
+      </form>
+
+      <section class="stats" aria-live="polite">
+        <p class="count"><span id="count-total">–</span> <span class="count-label">matching trees in Seattle</span></p>
+        <p class="sub" id="count-view"></p>
+        <p class="notice" id="notice" hidden></p>
+      </section>
+
+      <p class="source">
+        Data: <a href="https://data-seattlecitygis.opendata.arcgis.com/" target="_blank" rel="noopener">SDOT Trees</a>
+        (City of Seattle), in-service trees only.
+      </p>
+    </aside>
+
+    <div id="map" class="map" role="region" aria-label="Map of trees"></div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
