@@ -13,7 +13,7 @@ Only in-service trees are shown (`CURRENT_STATUS = 'INSVC'`).
 ## Features
 
 - **Tree family chips** with citywide counts (Maples, Cherries & plums, Pears & apples, Ashes, Birches, Oaks, Conifers, Everything else). Clicking a chip while all are on shows only that family; after that, clicks add or remove families. **Show all** resets. A tree's family comes from the genus in its scientific name.
-- **Trunk diameter**: Young (<6″), Medium (6–17″), Mature (18–35″) and Giant (36″+) presets, plus a two-thumb slider from 0 to 72+ inches. Clicking an active preset clears it.
+- **Trunk diameter**: Young (<6″), Medium (6–17″), Mature (18–35″), Large (36–49″) and Giant (50″+) presets, plus a two-thumb slider from 0 to 72+ inches. Clicking an active preset clears it.
 - **Species**: a search box and a ranked list of the top 12 species for the current filters, each with a count and a bar in its family color. Click a species to filter to it, and click it again to clear it.
 - **Count**: "X of Y trees match", where Y is every in-service tree in the city.
 - **Map**: Leaflet on a muted CARTO basemap (Positron in light mode, Dark Matter in dark mode). Dots are colored by family and sized by trunk diameter (about 2–8px, smaller when zoomed out), and the largest trees are drawn first. Trees load for the visible area as you pan and zoom. If more than 3,000 trees match in view, the map says "Zoom in to see individual trees" instead of drawing a partial set.

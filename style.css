@@ -39,8 +39,8 @@ section{margin:0}
 .chip[aria-pressed="false"]{background:transparent;color:var(--muted)}
 .chip[aria-pressed="false"] i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--c)}
 .chip:focus-visible,button:focus-visible,input:focus-visible,.sp:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.sizes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
-.sizes button{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;padding:7px 4px;font:500 13px var(--body);cursor:pointer;display:flex;flex-direction:column;gap:1px;align-items:center}
+.sizes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin-bottom:12px}
+.sizes button{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;padding:7px 2px;font:500 13px var(--body);white-space:nowrap;min-width:0;cursor:pointer;display:flex;flex-direction:column;gap:1px;align-items:center}
 .sizes button small{font-family:var(--mono);font-size:12.5px;font-weight:var(--w-small);color:var(--muted);font-variant-numeric:tabular-nums}
 .sizes button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .sizes button.on small{color:inherit;opacity:.8}

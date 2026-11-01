@@ -28,7 +28,7 @@
 
 ## Interaction details
 - Family chips toggle on and off. Clicking a chip while all are on isolates that family. "Show all" resets.
-- Size presets: Young <6″, Medium 6–17″, Mature 18–35″, Giant 36″+. Clicking an active preset clears it.
+- Size presets: Young <6″, Medium 6–17″, Mature 18–35″, Large 36–49″, Giant 50″+. Clicking an active preset clears it.
 - The species list shows the top 12 for the current filters, each with a count and a thin proportional bar in its family color. Clicking a species filters to it, and clicking it again clears it.
 - The count reads "X of Y trees shown".
 - The page opens in a useful state, with the largest tree selected.
