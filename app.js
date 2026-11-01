@@ -26,6 +26,10 @@
     listTop: 12,        // species shown before "Show all"
     home: { center: [47.6145, -122.3360], zoom: 12 },
     detailZoom: 17,
+
+    // CARTO basemaps key. It ships to every visitor's browser, so restrict it
+    // to this site's domain in the CARTO dashboard.
+    cartoKey: 'cb1_4zwi_1_5f45bb3f199208a216762f99',
   };
 
   // Tree families, as in the prototype. Conifers also include a few Seattle
@@ -188,11 +192,11 @@
   L.control.attribution({ position: 'bottomright', prefix: '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>' }).addTo(map);
   L.control.scale({ position: 'bottomleft', imperial: false, maxWidth: 110 }).addTo(map);
 
-  const tileUrl = () => `https://{s}.basemaps.cartocdn.com/${isDark() ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`;
+  const tileUrl = () => `https://{s}.basemaps.cartocdn.com/${isDark() ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CONFIG.cartoKey)}`;
   const tiles = L.tileLayer(tileUrl(), {
     subdomains: 'abcd',
     maxZoom: 20,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
   }).addTo(map);
 
   const renderer = L.canvas({ padding: 0.2 });

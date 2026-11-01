@@ -93,5 +93,5 @@ reference/prototype.html working design prototype (sample data, no basemap)
 ## Credits
 
 - Tree data: City of Seattle, Seattle Department of Transportation (SDOT).
-- Basemap: © OpenStreetMap contributors, © CARTO. CARTO's free basemaps are meant for light, non-commercial use. For heavy traffic, use a CARTO plan or another tile provider.
+- Basemap: © OpenStreetMap contributors, © CARTO. Tiles are requested with the CARTO basemaps API key in `CONFIG.cartoKey` (`app.js`). The key is visible to every visitor, so restrict it to your site's domain in the CARTO dashboard.
 - Fonts: Bricolage Grotesque, IBM Plex Sans and IBM Plex Mono, from Google Fonts.
