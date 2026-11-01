@@ -19,7 +19,7 @@ Only in-service trees are shown (`CURRENT_STATUS = 'INSVC'`).
 - **Map**: Leaflet on a muted CARTO basemap (Positron in light mode, Dark Matter in dark mode). Dots are colored by family and sized by trunk diameter (about 2–8px, smaller when zoomed out), and the largest trees are drawn first. Trees load for the visible area as you pan and zoom. If more than 3,000 trees match in view, the map says "Zoom in to see individual trees" instead of drawing a partial set.
 - **Tree details**: hover a dot for its name and diameter; click it for a card with the name, scientific name, trunk diameter in inches and cm, family, address, planting date, coordinates and a Google Maps link.
 - Opens on the largest recorded tree, already selected.
-- Light and dark themes follow the system setting, or set `data-theme="light"` or `"dark"` on `<html>`.
+- **Theme switch** (System, Light, Dark) at the bottom of the sidebar. System follows the device setting. The choice is saved in `localStorage`, applied as `data-theme` on `<html>` before the page draws, and switches the basemap between Positron and Dark Matter.
 - On screens up to 760px wide: the title and count come first, then the map at 58% of the screen height, then the filters.
 
 ### Diameters over 80 inches

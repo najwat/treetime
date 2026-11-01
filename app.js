@@ -516,6 +516,22 @@
     restyle();
   }
   darkMq.addEventListener?.('change', onTheme);
+
+  // Theme switch: System (no data-theme), Light or Dark. Saved per browser.
+  const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
+  const saved = root.dataset.theme === 'light' || root.dataset.theme === 'dark' ? root.dataset.theme : 'system';
+  themeInputs.forEach((inp) => {
+    inp.checked = inp.value === saved;
+    inp.addEventListener('change', () => {
+      if (!inp.checked) return;
+      if (inp.value === 'system') delete root.dataset.theme;
+      else root.dataset.theme = inp.value;
+      try {
+        if (inp.value === 'system') localStorage.removeItem('theme');
+        else localStorage.setItem('theme', inp.value);
+      } catch (e) { /* storage unavailable: the choice lasts for this visit */ }
+    });
+  });
   new MutationObserver(onTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 
   // ---------------------------------------------------------------------------
