@@ -85,6 +85,8 @@ Then open <http://localhost:8000>.
 4. Pick your branch (for example `main`) and the **/ (root)** folder, then click **Save**.
 5. After a minute the site will be live at `https://<your-username>.github.io/<repo-name>/`.
 
+When you change `app.js` or `style.css`, bump the `?v=` tag on their links in `index.html`. Otherwise a browser can pair a fresh page with a cached old script, and the page breaks.
+
 The `.nojekyll` file tells Pages to serve the files as they are, without running Jekyll. All paths are relative, so the app works under the `/<repo-name>/` subpath.
 
 ## Files

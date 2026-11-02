@@ -398,6 +398,20 @@
   let favorites = [];  // [{key, a, g:{x,y}, savedAt}], newest first
   try { favorites = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch (e) { favorites = []; }
   if (!Array.isArray(favorites)) favorites = [];
+  // Recover trees saved by the short-lived "crushes" version, which moved
+  // favorites to another key. Keeps its data so nothing is lost either way.
+  try {
+    const moved = JSON.parse(localStorage.getItem('treetimeCrushes') || '[]');
+    if (Array.isArray(moved)) {
+      for (const c of moved) {
+        if (c && c.on !== false && c.key && c.a && c.g && !favorites.some((f) => f.key === c.key)) {
+          favorites.push({ key: c.key, a: c.a, g: c.g, savedAt: c.addedAt || c.since || Date.now() });
+        }
+      }
+      favorites.sort((x, y) => y.savedAt - x.savedAt);
+      if (moved.length) localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
+    }
+  } catch (e) { /* storage unavailable */ }
   const favLayer = L.layerGroup().addTo(map);
 
   function treeKey(a) {
