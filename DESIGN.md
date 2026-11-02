@@ -5,7 +5,7 @@
 ## Layout
 - Desktop: fixed 340px filter sidebar on the left, full-height map on the right.
 - Phone (≤760px): the TreeTime heading, then the map at ~58% of the viewport height, then the filters below it.
-- Sidebar order: TreeTime heading, Tree family chips, Trunk diameter (presets plus a two-thumb range slider), Species search and ranked list, Favorites, footer (theme switch and data credit).
+- Sidebar order: TreeTime heading, Tree family chips, Trunk diameter (presets plus a two-thumb range slider), Species search and ranked list, Your crushes, footer (theme switch and data credit).
 
 ## Color
 - Cool, slightly green neutrals (`--bg #eef1ec`, `--panel #f8faf6`, `--ink #1d2a22`). No pure grey and no pure white.
