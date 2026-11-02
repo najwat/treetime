@@ -1,4 +1,4 @@
-/* Seattle Street Trees: plain JS, no build step.
+/* TreeTime: plain JS, no build step.
    Look and behavior follow DESIGN.md and reference/prototype.html. */
 (function () {
   'use strict';
