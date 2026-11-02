@@ -1,11 +1,11 @@
-# Design reference: Seattle street trees app
+# Design reference: TreeTime
 
 `reference/prototype.html` is a working prototype. Match its look and behavior. Reuse its CSS tokens directly rather than re-deriving them.
 
 ## Layout
 - Desktop: fixed 340px filter sidebar on the left, full-height map on the right.
-- Phone (≤760px): title and tree count, then the map at ~58% of the viewport height, then the filters below it.
-- Sidebar order: title and one-line scope, big tree count, Tree family chips, Trunk diameter (4 presets plus a two-thumb range slider), Species search and ranked list, data credit footer.
+- Phone (≤760px): the TreeTime heading, then the map at ~58% of the viewport height, then the filters below it.
+- Sidebar order: TreeTime heading, Tree family chips, Trunk diameter (presets plus a two-thumb range slider), Species search and ranked list, Favorites, footer (theme switch and data credit).
 
 ## Color
 - Cool, slightly green neutrals (`--bg #eef1ec`, `--panel #f8faf6`, `--ink #1d2a22`). No pure grey and no pure white.
@@ -30,7 +30,7 @@
 - Family chips toggle on and off. Clicking a chip while all are on isolates that family. "Show all" resets.
 - Size presets: Young <6″, Medium 6–17″, Mature 18–35″, Large 36–49″, Giant 50″+. Clicking an active preset clears it.
 - The species list shows the top 12 for the current filters, each with a count and a thin proportional bar in its family color. Clicking a species filters to it, and clicking it again clears it.
-- The count reads "X of Y trees shown".
+- No count box. When a filter is active, a pill centered at the top of the map describes the result in plain words ("1,204 maples · 18–35″ · Clear filters"). The "Zoom in to see individual trees" message uses the same spot, so they never overlap.
 - The page opens in a useful state, with the largest tree selected.
 
 ## Copy

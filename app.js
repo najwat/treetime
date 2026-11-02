@@ -58,6 +58,12 @@
     { id: 'other',     name: 'Everything else',  g: [] },
   ];
   const OTHER = FAMS.length - 1;
+  // Plain-word nouns for the filter pill: [singular, plural].
+  const NOUNS = {
+    maple: ['maple', 'maples'], cherry: ['cherry or plum', 'cherries & plums'], pear: ['pear or apple', 'pears & apples'],
+    flowering: ['flowering tree', 'flowering trees'], ash: ['ash', 'ashes'], birch: ['birch', 'birches'], oak: ['oak', 'oaks'],
+    shade: ['shade tree', 'shade trees'], conifer: ['conifer', 'conifers'], other: ['other tree', 'other trees'],
+  };
   const famOfGenus = {};
   FAMS.forEach((f, i) => f.g.forEach((g) => { famOfGenus[g] = i; }));
 
@@ -77,6 +83,7 @@
     fams: new Set(FAMS.map((_, i) => i)),
     dmin: 0, dmax: CONFIG.sliderMax,
     sp: null, q: '', showAll: false,
+    favOnly: false,       // show only saved trees
     sel: null,            // selected feature
     total: null,          // all in-service trees
     match: null,          // trees matching current filters
@@ -267,10 +274,12 @@
   }
   map.on('zoomend', restyle);
 
-  // Map overlay message (loading / zoom in / empty / error).
-  function setMsg(text) {
-    $('msg').textContent = text || '';
-    $('msg').hidden = !text;
+  // Map status: what the view loader last reported. The pill at the top of the
+  // map shows either this message or a plain-words summary of active filters.
+  let viewMsg = null; // null | {kind: 'loading'|'zoom'|'empty'|'error', text}
+  function setViewMsg(kind, text) {
+    viewMsg = kind ? { kind, text } : null;
+    renderPill();
   }
 
   function envelope() {
@@ -290,14 +299,22 @@
   async function loadView() {
     if (!ready) return;
     const signal = fresh('view');
+    if (state.favOnly) {
+      // Favorites are stored locally: no requests needed.
+      const favs = favMatches();
+      drawTrees(favs.map(favFeature));
+      setViewMsg(null);
+      if (state.sel && !favs.some((f) => f.key === treeKey(state.sel.attributes))) select(null);
+      return;
+    }
     const where = buildWhere();
     const env = envelope();
-    const slow = setTimeout(() => setMsg('Loading trees…'), 400);
+    const slow = setTimeout(() => setViewMsg('loading', 'Loading trees…'), 400);
     try {
       const { count } = await query({ where, ...env, returnCountOnly: 'true' }, signal);
       if (count > CONFIG.areaLimit) {
         drawTrees([]);
-        setMsg('Zoom in to see individual trees');
+        setViewMsg('zoom', 'Zoom in to see individual trees');
         return;
       }
       const feats = count ? await queryAll({
@@ -309,7 +326,8 @@
         resultRecordCount: String(state.maxRec),
       }, signal, CONFIG.areaLimit) : [];
       drawTrees(feats);
-      setMsg(count ? '' : 'No matching trees in this area');
+      if (count) setViewMsg(null);
+      else setViewMsg('empty', filtersActive() ? 'No matching trees in this area' : 'No trees in this area');
 
       // Close the card if the selected tree is in view but no longer matches.
       if (state.sel) {
@@ -320,7 +338,7 @@
       }
     } catch (e) {
       if (e.name === 'AbortError') return;
-      setMsg("Couldn't load trees for this area. Move the map to try again.");
+      setViewMsg('error', "Couldn't load trees for this area. Move the map to try again.");
     } finally {
       clearTimeout(slow);
     }
@@ -397,10 +415,35 @@
     if (favorites.some((f) => f.key === key)) favorites = favorites.filter((f) => f.key !== key);
     else favorites.unshift({ key, a: ft.attributes, g: { x: ft.geometry.x, y: ft.geometry.y }, savedAt: Date.now() });
     saveFavorites();
+    favoritesChanged();
+  }
+
+  function favoritesChanged() {
     renderFavorites();
+    if (state.favOnly) {
+      if (!favorites.length) state.favOnly = false;
+      changed({ species: false });
+    }
   }
 
   const favFeature = (f) => ({ attributes: f.a, geometry: f.g });
+
+  // Same rules as buildWhere(), applied to the locally stored favorites.
+  function favMatches() {
+    return favorites.filter((f) => {
+      const a = f.a;
+      if (!state.fams.has(famOfSci(attr(a, state.f.scientific)))) return false;
+      if (sizeActive()) {
+        const d = diamOf(a);
+        if (!d || d < state.dmin) return false;
+        if (state.dmax < CONFIG.sliderMax && d >= state.dmax + 1) return false;
+      }
+      if (state.sp && attr(a, state.f.common) !== state.sp) return false;
+      return true;
+    });
+  }
+
+  $('favonly').onclick = () => { state.favOnly = !state.favOnly; changed({ species: false }); };
 
   function openFavorite(f) {
     const ft = favFeature(f);
@@ -412,6 +455,9 @@
   function renderFavorites() {
     // Sidebar list
     $('favn').textContent = favorites.length ? fmt.format(favorites.length) : '';
+    $('favonly').hidden = !favorites.length;
+    $('favonly').textContent = state.favOnly ? 'Show all trees' : 'Show only these';
+    $('favonly').setAttribute('aria-pressed', String(state.favOnly));
     const list = $('favs');
     list.innerHTML = '';
     if (!favorites.length) {
@@ -433,7 +479,7 @@
       row.querySelector('.fav-x').onclick = () => {
         favorites = favorites.filter((x) => x.key !== f.key);
         saveFavorites();
-        renderFavorites();
+        favoritesChanged();
       };
       list.appendChild(row);
     }
@@ -465,14 +511,76 @@
   // ---------------------------------------------------------------------------
   // Sidebar: count, family chips, size presets, slider, species list
   // ---------------------------------------------------------------------------
-  function renderCount() {
-    const n = state.match;
-    $('n').textContent = n == null ? '…' : fmt.format(n);
-    if (state.total == null) return;
-    $('nlabel').textContent = n === state.total
-      ? 'trees, all of them'
-      : `of ${fmt.format(state.total)} trees match`;
+  const filtersActive = () => !allFams() || sizeActive() || !!state.sp || state.favOnly;
+
+  function sizeText() {
+    if (!sizeActive()) return null;
+    const { dmin, dmax } = state;
+    if (dmax >= CONFIG.sliderMax) return `${dmin}″+`;
+    if (dmin === 0) return `under ${dmax + 1}″`;
+    return `${dmin}–${dmax}″`;
   }
+
+  // Family names as separate pieces so a line can wrap between them.
+  function familyPieces() {
+    const ids = [...state.fams].sort((a, b) => a - b);
+    if (allFams()) return null;
+    if (ids.length <= 2) return ids.map((i) => FAMS[i].name);
+    return [`${ids.length} families`];
+  }
+
+  // Plain-words summary as parts, e.g. ["1,204 maples", ["18–35″"]]; each part is a
+  // list of pieces that must not break internally.
+  function describeFilters() {
+    const n = state.favOnly ? favMatches().length : state.match;
+    const one = n === 1;
+    let noun = one ? 'tree' : 'trees';
+    let famShown = false;
+    if (state.favOnly) noun = one ? 'favorite' : 'favorites';
+    else if (!state.sp && state.fams.size === 1) { noun = NOUNS[FAMS[[...state.fams][0]].id][one ? 0 : 1]; famShown = true; }
+    const parts = [[`${n == null ? '…' : fmt.format(n)} ${noun}`]];
+    if (state.sp) parts.push([state.sp]);
+    else if (!famShown && familyPieces()) parts.push(familyPieces());
+    if (sizeText()) parts.push([sizeText()]);
+    return parts;
+  }
+
+  // Each piece is a no-wrap span; a "·" belongs to the piece after it, so a
+  // line never starts with a separator.
+  function partsHtml(parts) {
+    return parts.map((pieces, i) => pieces.map((pc, j) => {
+      const lead = j > 0 ? '' : i > 0 ? '<span class="sep" aria-hidden="true">·</span> ' : '';
+      const tail = j < pieces.length - 1 ? ',' : '';
+      return `<span class="chunk">${lead}${esc(pc)}${tail}</span>`;
+    }).join(' ')).join(' ');
+  }
+
+  function renderPill() {
+    const pill = $('pill');
+    const active = filtersActive();
+    let html = null;
+    let clear = false;
+    const msg = (t) => `<span class="chunk-wrap">${esc(t)}</span>`;
+    if (viewMsg && (viewMsg.kind === 'zoom' || viewMsg.kind === 'error')) html = msg(viewMsg.text);
+    else if (active) { html = viewMsg?.kind === 'empty' ? msg(viewMsg.text) : partsHtml(describeFilters()); clear = true; }
+    else if (viewMsg) html = msg(viewMsg.text);
+    pill.hidden = !html;
+    $('pilltext').innerHTML = html || '';
+    $('pillclearwrap').hidden = !clear;
+    $('pillclear').textContent = state.favOnly && allFams() && !sizeActive() && !state.sp ? 'Clear' : 'Clear filters';
+  }
+
+  function clearFilters() {
+    state.fams = new Set(FAMS.map((_, i) => i));
+    state.dmin = 0;
+    state.dmax = CONFIG.sliderMax;
+    $('dmin').value = state.dmin;
+    $('dmax').value = state.dmax;
+    state.sp = null;
+    state.favOnly = false;
+    changed();
+  }
+  $('pillclear').onclick = clearFilters;
 
   const famsEl = $('fams');
   function buildChips(counts) {
@@ -571,7 +679,8 @@
   async function loadCount() {
     const signal = fresh('count');
     state.match = null;
-    renderCount();
+    renderPill();
+    if (state.favOnly) return; // the pill counts favorites locally
     try {
       const noFilters = allFams() && !sizeActive() && !state.sp;
       state.match = noFilters && state.total != null
@@ -579,9 +688,8 @@
         : (await query({ where: buildWhere(), returnCountOnly: 'true' }, signal)).count;
     } catch (e) {
       if (e.name === 'AbortError') return;
-      $('nlabel').textContent = "Couldn't count trees";
     }
-    renderCount();
+    renderPill();
   }
 
   async function loadSpecies() {
@@ -609,6 +717,8 @@
   function changed({ species = true } = {}) {
     renderControls();
     renderList();
+    renderFavorites();
+    renderPill();
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => {
       loadCount();
@@ -651,7 +761,7 @@
     try {
       meta = await arcgis('', {});
     } catch (e) {
-      $('nlabel').textContent = "Couldn't reach the city's tree data. Try reloading.";
+      setViewMsg('error', "Couldn't reach the city's tree data. Try reloading.");
       return;
     }
     state.f = resolveFields(meta.fields || []);
@@ -705,13 +815,13 @@
       state.total = state.match = total;
       speciesRows = [...bySpecies].map(([name, s]) => ({ name, count: s.count })).sort((a, b) => b.count - a.count);
     } else {
-      loadCount().then(() => { state.total = state.match; renderCount(); });
+      loadCount().then(() => { state.total = state.match; });
       loadSpecies();
     }
     if (S) buildChips(famCounts);
     else famsEl.closest('section').hidden = true;
     renderControls();
-    renderCount();
+    renderPill();
     renderList();
     renderFavorites();
 
