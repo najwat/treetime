@@ -10,7 +10,7 @@
 ## Color
 - Cool, slightly green neutrals (`--bg #eef1ec`, `--panel #f8faf6`, `--ink #1d2a22`). No pure grey and no pure white.
 - One UI accent: moss green `--accent #2f6b46`. Use it for active states, slider fill, and focus rings only.
-- Eight tree-family colors (`--f-maple`, `--f-cherry`, and so on) are used only for map dots, chip swatches, and species bars. Never use them for UI chrome.
+- Ten tree-family colors (`--f-maple`, `--f-cherry`, … `--f-flowering`, `--f-shade`, `--f-other`) are used only for map dots, chip swatches, and species bars. Never use them for UI chrome.
 - Full dark theme. Every color is a CSS variable, redefined under `prefers-color-scheme: dark` and under `[data-theme="dark"]`.
 
 ## Type

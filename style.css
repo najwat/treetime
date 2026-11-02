@@ -2,7 +2,7 @@
    Tokens and component styles follow reference/prototype.html. */
 :root{
   --bg:#eef1ec; --panel:#f8faf6; --ink:#1d2a22; --muted:#5d6b62; --line:#d3dacf; --accent:#2f6b46; --accent-ink:#ffffff; --map:#f4f6f1; --chip:#e3e9e0;
-  --f-maple:#c2410c; --f-cherry:#c0367a; --f-ash:#6d5bd0; --f-pear:#b88a00; --f-birch:#3f8fb0; --f-oak:#7a5230; --f-conifer:#1f7a4a; --f-other:#8b968e;
+  --f-maple:#c2410c; --f-cherry:#c0367a; --f-ash:#6d5bd0; --f-pear:#b88a00; --f-birch:#3f8fb0; --f-oak:#7a5230; --f-conifer:#1f7a4a; --f-flowering:#9a3db0; --f-shade:#6b7d12; --f-other:#8b968e;
   --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
   --body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -11,11 +11,11 @@
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#121814; --panel:#18201b; --ink:#e4ebe5; --muted:#b3c0b7; --w-small:500; --line:#2b362f; --accent:#7cc79a; --accent-ink:#0e1a12; --map:#0f1411; --chip:#222c25;
-  --f-maple:#f08a4b; --f-cherry:#ee77b0; --f-ash:#a597f5; --f-pear:#e3c047; --f-birch:#6cc0e2; --f-oak:#c99a6c; --f-conifer:#4fc47f; --f-other:#76827a;
+  --f-maple:#f08a4b; --f-cherry:#ee77b0; --f-ash:#a597f5; --f-pear:#e3c047; --f-birch:#6cc0e2; --f-oak:#c99a6c; --f-conifer:#4fc47f; --f-flowering:#d985f0; --f-shade:#c3d36b; --f-other:#76827a;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121814; --panel:#18201b; --ink:#e4ebe5; --muted:#b3c0b7; --w-small:500; --line:#2b362f; --accent:#7cc79a; --accent-ink:#0e1a12; --map:#0f1411; --chip:#222c25;
-  --f-maple:#f08a4b; --f-cherry:#ee77b0; --f-ash:#a597f5; --f-pear:#e3c047; --f-birch:#6cc0e2; --f-oak:#c99a6c; --f-conifer:#4fc47f; --f-other:#76827a;
+  --f-maple:#f08a4b; --f-cherry:#ee77b0; --f-ash:#a597f5; --f-pear:#e3c047; --f-birch:#6cc0e2; --f-oak:#c99a6c; --f-conifer:#4fc47f; --f-flowering:#d985f0; --f-shade:#c3d36b; --f-other:#76827a;
   color-scheme:dark}
 
 *{box-sizing:border-box}

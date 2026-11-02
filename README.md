@@ -12,7 +12,11 @@ Only in-service trees are shown (`CURRENT_STATUS = 'INSVC'`).
 
 ## Features
 
-- **Tree family chips** with citywide counts (Maples, Cherries & plums, Pears & apples, Ashes, Birches, Oaks, Conifers, Everything else). Clicking a chip while all are on shows only that family; after that, clicks add or remove families. **Show all** resets. A tree's family comes from the genus in its scientific name.
+- **Tree family chips** with citywide counts: Maples, Cherries & plums, Pears & apples, Flowering trees, Ashes, Birches, Oaks, Shade trees, Conifers and Everything else. Clicking a chip while all are on shows only that family; after that, clicks add or remove families. **Show all** resets.
+  - A tree's family comes from the genus, the first word of its scientific name. The genus lists are in `FAMS` in `app.js`.
+  - "Flowering trees" holds the other flowering genera, such as dogwoods, hawthorns, magnolias, serviceberries, snowbells and redbuds. Cherries, plums, pears and apples keep their own chips.
+  - "Shade trees" holds other large-canopy genera, such as London planes, lindens, sweetgums, elms, honey locusts, hornbeams, zelkovas, horse chestnuts and ginkgos.
+  - Any genus not listed goes to "Everything else". To check whether that group has grown too big, tap it: the Species list then ranks what's inside.
 - **Trunk diameter**: Young (<6″), Medium (6–17″), Mature (18–35″), Large (36–49″) and Giant (50″+) presets, plus a two-thumb slider from 0 to 72+ inches. Clicking an active preset clears it.
 - **Species**: a search box and a ranked list of the top 12 species for the current filters, each with a count and a bar in its family color. Click a species to filter to it, and click it again to clear it.
 - **Count**: "X of Y trees match", where Y is every in-service tree in the city.

@@ -32,19 +32,29 @@
     cartoKey: 'cb1_4zwi_1_5f45bb3f199208a216762f99',
   };
 
-  // Tree families, as in the prototype. Conifers also include a few Seattle
-  // genera the prototype's small sample didn't contain (Douglas-fir etc.).
+  // Tree families, grouped by genus (the first word of the scientific name).
+  // The first eight follow the prototype. "Flowering trees" and "Shade trees"
+  // keep common Seattle genera out of "Everything else"; both mean "other
+  // flowering / shade trees", since cherries, maples, oaks etc. have their own chips.
   const FAMS = [
-    { id: 'maple',   name: 'Maples',           g: ['Acer'] },
-    { id: 'cherry',  name: 'Cherries & plums', g: ['Prunus'] },
-    { id: 'pear',    name: 'Pears & apples',   g: ['Pyrus', 'Malus'] },
-    { id: 'ash',     name: 'Ashes',            g: ['Fraxinus'] },
-    { id: 'birch',   name: 'Birches',          g: ['Betula'] },
-    { id: 'oak',     name: 'Oaks',             g: ['Quercus'] },
-    { id: 'conifer', name: 'Conifers',         g: ['Thuja', 'Juniperus', 'Chamaecyparis', 'Cedrus', 'Pinus', 'Picea', 'Abies', 'Tsuga',
-                                                   'Sequoia', 'Sequoiadendron', 'Metasequoia', 'Cupressus', 'Pseudotsuga', 'Calocedrus',
-                                                   'Cryptomeria', 'Larix', 'Taxodium', 'Taxus'] },
-    { id: 'other',   name: 'Everything else',  g: [] },
+    { id: 'maple',     name: 'Maples',           g: ['Acer'] },
+    { id: 'cherry',    name: 'Cherries & plums', g: ['Prunus'] },
+    { id: 'pear',      name: 'Pears & apples',   g: ['Pyrus', 'Malus'] },
+    { id: 'flowering', name: 'Flowering trees',  g: ['Cornus', 'Crataegus', 'Magnolia', 'Amelanchier', 'Styrax', 'Cercis', 'Lagerstroemia',
+                                                     'Syringa', 'Halesia', 'Stewartia', 'Koelreuteria', 'Sorbus', 'Arbutus', 'Chionanthus',
+                                                     'Oxydendrum', 'Davidia', 'Laburnum', 'Cladrastis', 'Albizia', 'Franklinia', 'Heptacodium',
+                                                     'Cotinus', 'Cydonia', 'Mespilus', 'Prunus-x'] },
+    { id: 'ash',       name: 'Ashes',            g: ['Fraxinus'] },
+    { id: 'birch',     name: 'Birches',          g: ['Betula'] },
+    { id: 'oak',       name: 'Oaks',             g: ['Quercus'] },
+    { id: 'shade',     name: 'Shade trees',      g: ['Platanus', 'Tilia', 'Liquidambar', 'Ulmus', 'Gleditsia', 'Zelkova', 'Carpinus', 'Aesculus',
+                                                     'Fagus', 'Celtis', 'Liriodendron', 'Cercidiphyllum', 'Nyssa', 'Parrotia', 'Robinia', 'Ginkgo',
+                                                     'Gymnocladus', 'Catalpa', 'Juglans', 'Ostrya', 'Populus', 'Salix', 'Alnus', 'Styphnolobium',
+                                                     'Sophora', 'Corylus', 'Pterocarya', 'Phellodendron', 'Sassafras', 'Morus', 'Eucommia', 'Ailanthus'] },
+    { id: 'conifer',   name: 'Conifers',         g: ['Thuja', 'Juniperus', 'Chamaecyparis', 'Cedrus', 'Pinus', 'Picea', 'Abies', 'Tsuga',
+                                                     'Sequoia', 'Sequoiadendron', 'Metasequoia', 'Cupressus', 'Pseudotsuga', 'Calocedrus',
+                                                     'Cryptomeria', 'Larix', 'Taxodium', 'Taxus'] },
+    { id: 'other',     name: 'Everything else',  g: [] },
   ];
   const OTHER = FAMS.length - 1;
   const famOfGenus = {};
@@ -103,7 +113,12 @@
   // ---------------------------------------------------------------------------
   async function arcgis(path, params, signal) {
     const qs = new URLSearchParams({ f: 'json', ...params });
-    const res = await fetch(`${CONFIG.layerUrl}${path}?${qs}`, { signal });
+    const url = `${CONFIG.layerUrl}${path}`;
+    // Long where clauses (e.g. "Everything else") go as a form POST, which
+    // ArcGIS accepts for queries and which avoids URL length limits.
+    const res = qs.toString().length > 1800
+      ? await fetch(url, { method: 'POST', body: qs, signal })
+      : await fetch(`${url}?${qs}`, { signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error.message || 'Query failed');
