@@ -18,6 +18,7 @@
       diameter:   { candidates: ['DIAM', 'DBH', 'DIAMETER'], pattern: /diam|dbh/i },
       address:    { candidates: ['UNITDESC', 'ADDRESS'], pattern: /addr/i },
       planted:    { candidates: ['PLANTED_DATE', 'PLANTDATE'], pattern: /plant.*date/i },
+      unitId:     { candidates: ['UNITID'], pattern: null }, // stable tree ID, used for favorites
     },
 
     maxDiameter: 80,    // inches; larger values are data-entry errors -> "Not recorded"
@@ -362,6 +363,7 @@
     $('cdl').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
     $('clink').href = `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(5)},${lng.toFixed(5)}`;
     card.hidden = false;
+    updateSaveButton();
 
     ring = L.circleMarker([lat, lng], {
       renderer, radius: radiusFor(d) + 4, color: ink, weight: 2, fill: false, interactive: false,
@@ -369,6 +371,96 @@
   }
   $('cardx').onclick = () => select(null);
   map.on('click', () => select(null));
+
+  // ---------------------------------------------------------------------------
+  // Favorites: saved in this browser (localStorage), shown in the sidebar and
+  // as stars on the map regardless of filters.
+  // ---------------------------------------------------------------------------
+  const FAV_KEY = 'favoriteTrees';
+  let favorites = [];  // [{key, a, g:{x,y}, savedAt}], newest first
+  try { favorites = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch (e) { favorites = []; }
+  if (!Array.isArray(favorites)) favorites = [];
+  const favLayer = L.layerGroup().addTo(map);
+
+  function treeKey(a) {
+    const id = attr(a, state.f.unitId);
+    return id ? `id:${id}` : `oid:${attr(a, state.oid)}`;
+  }
+  const isFav = (ft) => !!ft && favorites.some((f) => f.key === treeKey(ft.attributes));
+
+  function saveFavorites() {
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(favorites)); } catch (e) { /* storage unavailable: kept for this visit */ }
+  }
+
+  function toggleFavorite(ft) {
+    const key = treeKey(ft.attributes);
+    if (favorites.some((f) => f.key === key)) favorites = favorites.filter((f) => f.key !== key);
+    else favorites.unshift({ key, a: ft.attributes, g: { x: ft.geometry.x, y: ft.geometry.y }, savedAt: Date.now() });
+    saveFavorites();
+    renderFavorites();
+  }
+
+  const favFeature = (f) => ({ attributes: f.a, geometry: f.g });
+
+  function openFavorite(f) {
+    const ft = favFeature(f);
+    map.setView([f.g.y, f.g.x], Math.max(map.getZoom(), CONFIG.detailZoom));
+    select(ft);
+    if (window.matchMedia('(max-width: 760px)').matches) $('main').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderFavorites() {
+    // Sidebar list
+    $('favn').textContent = favorites.length ? fmt.format(favorites.length) : '';
+    const list = $('favs');
+    list.innerHTML = '';
+    if (!favorites.length) {
+      list.innerHTML = '<p>Tap ☆ Save on a tree\'s card to keep it here.</p>';
+    }
+    for (const f of favorites) {
+      const a = f.a;
+      const d = diamOf(a);
+      const fam = famOfSci(attr(a, state.f.scientific));
+      const row = document.createElement('div');
+      row.className = 'fav';
+      row.style.setProperty('--c', `var(--f-${FAMS[fam].id})`);
+      const sub = [attr(a, state.f.address), d ? `${fmtIn(d)}″` : null].filter(Boolean).join(' · ');
+      row.innerHTML = `<button type="button" class="fav-open"><i></i><span><b></b><small></small></span></button>
+        <button type="button" class="fav-x" aria-label="Remove from favorites">×</button>`;
+      row.querySelector('b').textContent = attr(a, state.f.common) || 'Unknown species';
+      row.querySelector('small').textContent = sub;
+      row.querySelector('.fav-open').onclick = () => openFavorite(f);
+      row.querySelector('.fav-x').onclick = () => {
+        favorites = favorites.filter((x) => x.key !== f.key);
+        saveFavorites();
+        renderFavorites();
+      };
+      list.appendChild(row);
+    }
+
+    // Map stars
+    favLayer.clearLayers();
+    for (const f of favorites) {
+      L.marker([f.g.y, f.g.x], {
+        icon: L.divIcon({ className: 'fav-pin', html: '★', iconSize: [18, 18], iconAnchor: [9, 9] }),
+        keyboard: false,
+        title: attr(f.a, state.f.common) || 'Favorite tree',
+        zIndexOffset: 500,
+      }).on('click', (e) => { L.DomEvent.stopPropagation(e); select(favFeature(f)); }).addTo(favLayer);
+    }
+
+    // Card button
+    updateSaveButton();
+  }
+
+  function updateSaveButton() {
+    const b = $('cfav');
+    const on = isFav(state.sel);
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? '★ Saved' : '☆ Save';
+    b.title = on ? 'Remove from favorites' : 'Add to favorites';
+  }
+  $('cfav').onclick = () => { if (state.sel) toggleFavorite(state.sel); };
 
   // ---------------------------------------------------------------------------
   // Sidebar: count, family chips, size presets, slider, species list
@@ -621,6 +713,7 @@
     renderControls();
     renderCount();
     renderList();
+    renderFavorites();
 
     // Open in a useful state: the largest recorded tree, selected.
     if (largest?.geometry) {

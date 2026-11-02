@@ -50,6 +50,11 @@
         <button class="more" id="more" type="button" hidden></button>
       </section>
 
+      <section>
+        <p class="label">Favorites <span class="favn" id="favn"></span></p>
+        <div class="list" id="favs"></div>
+      </section>
+
       <footer>
         <fieldset class="theme">
           <legend>Theme</legend>
@@ -78,7 +83,10 @@
       <h2 id="cname"></h2>
       <div class="gen" id="cgen"></div>
       <dl id="cdl"></dl>
-      <a id="clink" href="#" target="_blank" rel="noopener">Open in Google Maps ↗</a>
+      <div class="card-actions">
+        <a id="clink" href="#" target="_blank" rel="noopener" aria-label="Open in Google Maps">Google Maps ↗</a>
+        <button class="save" id="cfav" type="button" aria-pressed="false">☆ Save</button>
+      </div>
     </div>
   </main>
 </div>
