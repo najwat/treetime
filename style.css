@@ -61,18 +61,30 @@ section{margin:0}
 .sp .bar b{display:block;height:100%;background:var(--c);border-radius:1px}
 .clear{appearance:none;border:0;background:none;color:var(--accent);font:600 13px var(--body);cursor:pointer;padding:0;letter-spacing:0;text-transform:none}
 .more{appearance:none;border:0;background:none;color:var(--muted);font:500 13px var(--body);cursor:pointer;padding:6px;text-align:left}
-/* favorites */
-.favn{font-family:var(--body);font-variant-numeric:tabular-nums;letter-spacing:0;color:var(--ink);font-weight:500}
-.fav{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;border-radius:6px}
-.fav:hover{background:var(--chip)}
-.fav-open{display:grid;grid-template-columns:10px minmax(0,1fr);gap:8px;align-items:center;padding:6px;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;min-width:0}
-.fav-open i{width:8px;height:8px;border-radius:50%;background:var(--c)}
-.fav-open span{display:flex;flex-direction:column;min-width:0}
-.fav-open b{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fav-open small{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-.fav-x{appearance:none;border:0;background:none;color:var(--muted);font-size:18px;width:32px;height:32px;cursor:pointer;border-radius:6px}
-.fav-x:hover{color:var(--ink)}
-.fav-pin{color:var(--ink);font-size:16px;line-height:18px;text-align:center;text-shadow:0 0 2px var(--panel),0 0 2px var(--panel),0 0 3px var(--panel);cursor:pointer}
+/* crushes */
+.crushn{font-family:var(--body);font-variant-numeric:tabular-nums;letter-spacing:0;color:var(--ink);font-weight:500}
+.crush{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;border-radius:6px}
+.crush:hover{background:var(--chip)}
+.crush-open{display:grid;grid-template-columns:10px minmax(0,1fr);gap:8px;align-items:center;padding:6px;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;min-width:0}
+.crush-open i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.crush-open span{display:flex;flex-direction:column;min-width:0}
+.crush-open b{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crush-open small{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.crush-x{appearance:none;border:0;background:none;color:var(--muted);font-size:18px;width:32px;height:32px;cursor:pointer;border-radius:6px}
+.crush-x:hover{color:var(--ink)}
+.crush-pin{color:var(--ink);font-size:16px;line-height:18px;text-align:center;text-shadow:0 0 2px var(--panel),0 0 2px var(--panel),0 0 3px var(--panel);cursor:pointer}
+.card .species{font-size:14px;color:var(--ink);margin:1px 0 1px}
+.crushinfo{margin:0 0 10px;padding-top:8px;border-top:1px solid var(--line);font-size:13px}
+.crushinfo .since{margin:0;color:var(--muted);display:flex;gap:8px;align-items:baseline}
+.crushinfo .link,.crushinfo .prompt{appearance:none;border:0;background:none;padding:0;color:var(--accent);font:500 13px var(--body);cursor:pointer;text-align:left}
+.crushinfo .link:hover,.crushinfo .prompt:hover{text-decoration:underline}
+.crushinfo .prompt{display:block;margin-top:4px;color:var(--muted);font-style:italic}
+.crushinfo .prompt:hover{color:var(--ink)}
+.nameform{display:flex;gap:6px;margin-top:6px}
+.nameform input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:5px 8px;font:14px var(--body)}
+.nameform button{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:6px;padding:4px 9px;font:500 13px var(--body);cursor:pointer}
+.nameform button[type=submit]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.nameform[hidden],.crushinfo[hidden],.crushinfo [hidden]{display:none}
 .card-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .card .save{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:4px 10px;font:500 13px var(--body);cursor:pointer;white-space:nowrap}
 .card .save[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
