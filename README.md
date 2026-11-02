@@ -1,6 +1,6 @@
 # TreeTime
 
-TreeTime is a small static web app for exploring Seattle's street trees. It uses plain HTML, CSS and JavaScript with no build step and no backend. You can filter by tree family, trunk diameter and species, see the matching trees on a map, and heart the trees you love. The look and behavior follow [`DESIGN.md`](DESIGN.md) and [`reference/prototype.html`](reference/prototype.html).
+TreeTime is a small static web app for exploring Seattle's street trees. It uses plain HTML, CSS and JavaScript with no build step and no backend. You can filter by tree family, trunk diameter and species and see the matching trees on a map. The look and behavior follow [`DESIGN.md`](DESIGN.md) and [`reference/prototype.html`](reference/prototype.html).
 
 Data comes live from the SDOT Trees ArcGIS FeatureServer:
 
@@ -19,13 +19,12 @@ Only in-service trees are shown (`CURRENT_STATUS = 'INSVC'`).
   - Any genus not listed goes to "Everything else". To check whether that group has grown too big, tap it: the Species list then ranks what's inside.
 - **Trunk diameter**: Young (<6″), Medium (6–17″), Mature (18–35″), Large (36–49″) and Giant (50″+) presets, plus a two-thumb slider from 0 to 72+ inches. Clicking an active preset clears it.
 - **Species**: a search box and a ranked list of the top 12 species for the current filters, each with a count and a bar in its family color. Click a species to filter to it, and click it again to clear it.
-- **Filter pill**: when any filter is on (family, size, species or crushes only), a pill at the top of the map sums up the result in plain words, such as "319 maples · 18–35″ · Clear filters" or "3 crushes · Clear". **Clear filters** resets everything. The pill is hidden when no filters are on. When the map needs you to zoom in, that message takes the pill's place instead.
+- **Filter pill**: when any filter is on (family, size, species or favorites only), a pill at the top of the map sums up the result in plain words, such as "319 maples · 18–35″ · Clear filters" or "3 favorites · Clear". **Clear filters** resets everything. The pill is hidden when no filters are on. When the map needs you to zoom in, that message takes the pill's place instead.
 - **Map**: Leaflet on a muted CARTO basemap (Positron in light mode, Dark Matter in dark mode). Dots are colored by family and sized by trunk diameter (about 2–8px, smaller when zoomed out), and the largest trees are drawn first. Trees load for the visible area as you pan and zoom. If more than 3,000 trees match in view, the map says "Zoom in to see individual trees" instead of drawing a partial set.
 - **Tree details**: hover a dot for its name and diameter; click it for a card with the name, scientific name, trunk diameter in inches and cm, family, address, planting date, coordinates and a Google Maps link.
-- **Crushes**: tap **♡ Crush** on a tree's card to add it to **Your crushes** in the sidebar (the button then reads **♥ Crushing**). Tap a crush to jump to it, or × to remove it. Hearted trees show as ♥ on the map even when your filters hide them. **Show only these** limits the map to your crushes, and family, size and species filters still apply to them.
-  - The card shows "Crush since Nov 2026", the month you first hearted the tree. If a crush has no name yet, the card offers "It's getting serious. Give them a name?". A name (up to 40 characters) becomes the card heading, with the species shown under it, and it's used in the sidebar list. **Rename** changes it, and saving an empty name removes it.
-  - Removing a crush keeps its name and first-hearted date, so both come back if you heart the tree again.
-  - Crushes are saved in this browser's `localStorage` (key `treetimeCrushes`), so they stay on this device and don't sync between devices. Each is keyed by the city's tree ID (`UNITID`) and stores a copy of the tree's details, so the list loads without any extra requests. Favorites saved by an earlier version are moved into crushes automatically, keeping their saved date.
+- **Favorites**: tap **☆ Save** on a tree's card to add it to the Favorites list in the sidebar. Tap a favorite to jump to it, or × to remove it. Saved trees show as ★ on the map even when your filters hide them. **Show only these** limits the map to your favorites, and family, size and species filters still apply to them.
+  - Favorites are saved in this browser's `localStorage` (key `favoriteTrees`), so they stay on this device and don't sync between devices.
+  - Each favorite is keyed by the city's tree ID (`UNITID`) and stores a copy of the tree's details, so the list loads without any extra requests.
 - Opens on the largest recorded tree, already selected.
 - **Theme switch** (System, Light, Dark) at the bottom of the sidebar. System follows the device setting. The choice is saved in `localStorage`, applied as `data-theme` on `<html>` before the page draws, and switches the basemap between Positron and Dark Matter.
 - On screens up to 760px wide: the TreeTime heading comes first, then the map at 58% of the screen height, then the filters.
@@ -62,7 +61,7 @@ The app reads the layer's field list when it starts. It then picks the species a
 | Trunk diameter | `DIAM` |
 | Address | `UNITDESC` |
 | Planting date | `PLANTED_DATE` |
-| Tree ID (crushes) | `UNITID` |
+| Tree ID (favorites) | `UNITID` |
 
 All of these were confirmed against the live layer.
 

@@ -18,7 +18,7 @@
       diameter:   { candidates: ['DIAM', 'DBH', 'DIAMETER'], pattern: /diam|dbh/i },
       address:    { candidates: ['UNITDESC', 'ADDRESS'], pattern: /addr/i },
       planted:    { candidates: ['PLANTED_DATE', 'PLANTDATE'], pattern: /plant.*date/i },
-      unitId:     { candidates: ['UNITID'], pattern: null }, // stable tree ID, used for crushes
+      unitId:     { candidates: ['UNITID'], pattern: null }, // stable tree ID, used for favorites
     },
 
     maxDiameter: 80,    // inches; larger values are data-entry errors -> "Not recorded"
@@ -83,7 +83,7 @@
     fams: new Set(FAMS.map((_, i) => i)),
     dmin: 0, dmax: CONFIG.sliderMax,
     sp: null, q: '', showAll: false,
-    crushOnly: false,     // show only trees you have a crush on
+    favOnly: false,       // show only saved trees
     sel: null,            // selected feature
     total: null,          // all in-service trees
     match: null,          // trees matching current filters
@@ -299,12 +299,12 @@
   async function loadView() {
     if (!ready) return;
     const signal = fresh('view');
-    if (state.crushOnly) {
-      // Crushes are stored locally: no requests needed.
-      const list = crushMatches();
-      drawTrees(list.map(crushFeature));
+    if (state.favOnly) {
+      // Favorites are stored locally: no requests needed.
+      const favs = favMatches();
+      drawTrees(favs.map(favFeature));
       setViewMsg(null);
-      if (state.sel && !list.some((c) => c.key === treeKey(state.sel.attributes))) select(null);
+      if (state.sel && !favs.some((f) => f.key === treeKey(state.sel.attributes))) select(null);
       return;
     }
     const where = buildWhere();
@@ -381,8 +381,7 @@
     $('cdl').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
     $('clink').href = `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(5)},${lng.toFixed(5)}`;
     card.hidden = false;
-    $('cnameform').hidden = true;
-    updateCrushCard();
+    updateSaveButton();
 
     ring = L.circleMarker([lat, lng], {
       renderer, radius: radiusFor(d) + 4, color: ink, weight: 2, fill: false, interactive: false,
@@ -392,78 +391,47 @@
   map.on('click', () => select(null));
 
   // ---------------------------------------------------------------------------
-  // Crushes: trees you've hearted. Saved in this browser (localStorage), listed in
-  // the sidebar and shown as hearts on the map regardless of filters.
-  // Un-hearting keeps the record (on: false), so a tree keeps its name and the
-  // date it was first hearted if you heart it again.
+  // Favorites: saved in this browser (localStorage), shown in the sidebar and
+  // as stars on the map regardless of filters.
   // ---------------------------------------------------------------------------
-  const CRUSH_KEY = 'treetimeCrushes';
-  const HEART = '♥︎', HEART_OPEN = '♡︎';
-  let crushRecords = loadCrushes(); // [{key, a, g:{x,y}, since, addedAt, name, on}]
-  const crushLayer = L.layerGroup().addTo(map);
-
-  function loadCrushes() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(CRUSH_KEY) || 'null');
-      if (Array.isArray(saved)) return saved;
-      // One-time move from the earlier "favorites" list.
-      const old = JSON.parse(localStorage.getItem('favoriteTrees') || '[]');
-      if (Array.isArray(old) && old.length) {
-        const moved = old.map((f) => ({ key: f.key, a: f.a, g: f.g, since: f.savedAt || Date.now(), addedAt: f.savedAt || Date.now(), name: '', on: true }));
-        localStorage.setItem(CRUSH_KEY, JSON.stringify(moved));
-        localStorage.removeItem('favoriteTrees');
-        return moved;
-      }
-    } catch (e) { /* storage unavailable */ }
-    return [];
-  }
-  function saveCrushes() {
-    try { localStorage.setItem(CRUSH_KEY, JSON.stringify(crushRecords)); } catch (e) { /* storage unavailable: kept for this visit */ }
-  }
+  const FAV_KEY = 'favoriteTrees';
+  let favorites = [];  // [{key, a, g:{x,y}, savedAt}], newest first
+  try { favorites = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch (e) { favorites = []; }
+  if (!Array.isArray(favorites)) favorites = [];
+  const favLayer = L.layerGroup().addTo(map);
 
   function treeKey(a) {
     const id = attr(a, state.f.unitId);
     return id ? `id:${id}` : `oid:${attr(a, state.oid)}`;
   }
-  const recordFor = (ft) => (ft ? crushRecords.find((c) => c.key === treeKey(ft.attributes)) : null);
-  const isCrush = (ft) => !!recordFor(ft)?.on;
-  const crushes = () => crushRecords.filter((c) => c.on).sort((x, y) => y.addedAt - x.addedAt);
-  const crushFeature = (c) => ({ attributes: c.a, geometry: c.g });
-  const crushTitle = (c) => c.name || attr(c.a, state.f.common) || 'Unknown species';
+  const isFav = (ft) => !!ft && favorites.some((f) => f.key === treeKey(ft.attributes));
 
-  function toggleCrush(ft) {
-    const rec = recordFor(ft);
-    if (rec) {
-      rec.on = !rec.on;
-      if (rec.on) { rec.addedAt = Date.now(); rec.a = ft.attributes; rec.g = { x: ft.geometry.x, y: ft.geometry.y }; }
-    } else {
-      const now = Date.now();
-      crushRecords.push({ key: treeKey(ft.attributes), a: ft.attributes, g: { x: ft.geometry.x, y: ft.geometry.y }, since: now, addedAt: now, name: '', on: true });
-    }
-    saveCrushes();
-    crushesChanged();
+  function saveFavorites() {
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(favorites)); } catch (e) { /* storage unavailable: kept for this visit */ }
   }
 
-  function setName(ft, name) {
-    const rec = recordFor(ft);
-    if (!rec) return;
-    rec.name = name.trim().slice(0, 40);
-    saveCrushes();
-    renderCrushes();
+  function toggleFavorite(ft) {
+    const key = treeKey(ft.attributes);
+    if (favorites.some((f) => f.key === key)) favorites = favorites.filter((f) => f.key !== key);
+    else favorites.unshift({ key, a: ft.attributes, g: { x: ft.geometry.x, y: ft.geometry.y }, savedAt: Date.now() });
+    saveFavorites();
+    favoritesChanged();
   }
 
-  function crushesChanged() {
-    renderCrushes();
-    if (state.crushOnly) {
-      if (!crushes().length) state.crushOnly = false;
+  function favoritesChanged() {
+    renderFavorites();
+    if (state.favOnly) {
+      if (!favorites.length) state.favOnly = false;
       changed({ species: false });
     }
   }
 
-  // Same rules as buildWhere(), applied to the locally stored crushes.
-  function crushMatches() {
-    return crushes().filter((c) => {
-      const a = c.a;
+  const favFeature = (f) => ({ attributes: f.a, geometry: f.g });
+
+  // Same rules as buildWhere(), applied to the locally stored favorites.
+  function favMatches() {
+    return favorites.filter((f) => {
+      const a = f.a;
       if (!state.fams.has(famOfSci(attr(a, state.f.scientific)))) return false;
       if (sizeActive()) {
         const d = diamOf(a);
@@ -475,105 +443,75 @@
     });
   }
 
-  $('crushonly').onclick = () => { state.crushOnly = !state.crushOnly; changed({ species: false }); };
+  $('favonly').onclick = () => { state.favOnly = !state.favOnly; changed({ species: false }); };
 
-  function openCrush(c) {
-    map.setView([c.g.y, c.g.x], Math.max(map.getZoom(), CONFIG.detailZoom));
-    select(crushFeature(c));
+  function openFavorite(f) {
+    const ft = favFeature(f);
+    map.setView([f.g.y, f.g.x], Math.max(map.getZoom(), CONFIG.detailZoom));
+    select(ft);
     if (window.matchMedia('(max-width: 760px)').matches) $('main').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function renderCrushes() {
-    const list = crushes();
-    $('crushn').textContent = list.length ? fmt.format(list.length) : '';
-    $('crushonly').hidden = !list.length;
-    $('crushonly').textContent = state.crushOnly ? 'Show all trees' : 'Show only these';
-    $('crushonly').setAttribute('aria-pressed', String(state.crushOnly));
-
-    const el = $('crushlist');
-    el.innerHTML = '';
-    if (!list.length) el.innerHTML = '<p>No crushes yet. Tap the heart on any tree that catches your eye.</p>';
-    for (const c of list) {
-      const a = c.a;
+  function renderFavorites() {
+    // Sidebar list
+    $('favn').textContent = favorites.length ? fmt.format(favorites.length) : '';
+    $('favonly').hidden = !favorites.length;
+    $('favonly').textContent = state.favOnly ? 'Show all trees' : 'Show only these';
+    $('favonly').setAttribute('aria-pressed', String(state.favOnly));
+    const list = $('favs');
+    list.innerHTML = '';
+    if (!favorites.length) {
+      list.innerHTML = '<p>Tap ☆ Save on a tree\'s card to keep it here.</p>';
+    }
+    for (const f of favorites) {
+      const a = f.a;
       const d = diamOf(a);
       const fam = famOfSci(attr(a, state.f.scientific));
       const row = document.createElement('div');
-      row.className = 'crush';
+      row.className = 'fav';
       row.style.setProperty('--c', `var(--f-${FAMS[fam].id})`);
-      const sub = [c.name ? attr(a, state.f.common) : null, attr(a, state.f.address), d ? `${fmtIn(d)}″` : null].filter(Boolean).join(' · ');
-      row.innerHTML = `<button type="button" class="crush-open"><i></i><span><b></b><small></small></span></button>
-        <button type="button" class="crush-x" aria-label="Remove from crushes">×</button>`;
-      row.querySelector('b').textContent = crushTitle(c);
+      const sub = [attr(a, state.f.address), d ? `${fmtIn(d)}″` : null].filter(Boolean).join(' · ');
+      row.innerHTML = `<button type="button" class="fav-open"><i></i><span><b></b><small></small></span></button>
+        <button type="button" class="fav-x" aria-label="Remove from favorites">×</button>`;
+      row.querySelector('b').textContent = attr(a, state.f.common) || 'Unknown species';
       row.querySelector('small').textContent = sub;
-      row.querySelector('.crush-open').onclick = () => openCrush(c);
-      row.querySelector('.crush-x').onclick = () => { c.on = false; saveCrushes(); crushesChanged(); };
-      el.appendChild(row);
+      row.querySelector('.fav-open').onclick = () => openFavorite(f);
+      row.querySelector('.fav-x').onclick = () => {
+        favorites = favorites.filter((x) => x.key !== f.key);
+        saveFavorites();
+        favoritesChanged();
+      };
+      list.appendChild(row);
     }
 
-    // Hearts on the map
-    crushLayer.clearLayers();
-    for (const c of list) {
-      L.marker([c.g.y, c.g.x], {
-        icon: L.divIcon({ className: 'crush-pin', html: HEART, iconSize: [18, 18], iconAnchor: [9, 9] }),
+    // Map stars
+    favLayer.clearLayers();
+    for (const f of favorites) {
+      L.marker([f.g.y, f.g.x], {
+        icon: L.divIcon({ className: 'fav-pin', html: '★', iconSize: [18, 18], iconAnchor: [9, 9] }),
         keyboard: false,
-        title: crushTitle(c),
+        title: attr(f.a, state.f.common) || 'Favorite tree',
         zIndexOffset: 500,
-      }).on('click', (e) => { L.DomEvent.stopPropagation(e); select(crushFeature(c)); }).addTo(crushLayer);
+      }).on('click', (e) => { L.DomEvent.stopPropagation(e); select(favFeature(f)); }).addTo(favLayer);
     }
 
-    updateCrushCard();
+    // Card button
+    updateSaveButton();
   }
 
-  // Card: heart button, name heading, "Crush since …" and the name prompt.
-  function updateCrushCard() {
-    const ft = state.sel;
-    const rec = recordFor(ft);
-    const on = !!rec?.on;
-    const b = $('cheart');
+  function updateSaveButton() {
+    const b = $('cfav');
+    const on = isFav(state.sel);
     b.setAttribute('aria-pressed', String(on));
-    b.textContent = on ? `${HEART} Crushing` : `${HEART_OPEN} Crush`;
-    if (!ft) return;
-
-    const common = attr(ft.attributes, state.f.common) || 'Unknown species';
-    const named = on && rec.name;
-    $('cname').textContent = named ? rec.name : common;
-    $('cspecies').textContent = named ? common : '';
-    $('cspecies').hidden = !named;
-
-    $('crush').hidden = !on;
-    if (!on) { $('cnameform').hidden = true; return; }
-    $('csince').textContent = `Crush since ${new Date(rec.since).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
-    const editing = !$('cnameform').hidden;
-    $('cprompt').hidden = !!rec.name || editing;
-    $('crename').hidden = !rec.name || editing;
+    b.textContent = on ? '★ Saved' : '☆ Save';
+    b.title = on ? 'Remove from favorites' : 'Add to favorites';
   }
-
-  function openNameForm() {
-    const rec = recordFor(state.sel);
-    $('cnameinput').value = rec?.name || '';
-    $('cnameform').hidden = false;
-    updateCrushCard();
-    $('cnameinput').focus();
-  }
-  function closeNameForm() {
-    $('cnameform').hidden = true;
-    updateCrushCard();
-  }
-  $('cheart').onclick = () => { if (state.sel) toggleCrush(state.sel); };
-  $('cprompt').onclick = openNameForm;
-  $('crename').onclick = openNameForm;
-  $('cnamecancel').onclick = closeNameForm;
-  $('cnameform').onsubmit = (e) => {
-    e.preventDefault();
-    if (state.sel) setName(state.sel, $('cnameinput').value);
-    closeNameForm();
-  };
-  $('cnameinput').onkeydown = (e) => { if (e.key === 'Escape') closeNameForm(); };
+  $('cfav').onclick = () => { if (state.sel) toggleFavorite(state.sel); };
 
   // ---------------------------------------------------------------------------
   // Sidebar: count, family chips, size presets, slider, species list
   // ---------------------------------------------------------------------------
-  const filtersActive = () => !allFams() || sizeActive() || !!state.sp || state.crushOnly;
+  const filtersActive = () => !allFams() || sizeActive() || !!state.sp || state.favOnly;
 
   function sizeText() {
     if (!sizeActive()) return null;
@@ -591,14 +529,14 @@
     return [`${ids.length} families`];
   }
 
-  // Plain-words summary as parts, e.g. [["1,204 maples"], ["18–35″"]]; each part is a
+  // Plain-words summary as parts, e.g. ["1,204 maples", ["18–35″"]]; each part is a
   // list of pieces that must not break internally.
   function describeFilters() {
-    const n = state.crushOnly ? crushMatches().length : state.match;
+    const n = state.favOnly ? favMatches().length : state.match;
     const one = n === 1;
     let noun = one ? 'tree' : 'trees';
     let famShown = false;
-    if (state.crushOnly) noun = one ? 'crush' : 'crushes';
+    if (state.favOnly) noun = one ? 'favorite' : 'favorites';
     else if (!state.sp && state.fams.size === 1) { noun = NOUNS[FAMS[[...state.fams][0]].id][one ? 0 : 1]; famShown = true; }
     const parts = [[`${n == null ? '…' : fmt.format(n)} ${noun}`]];
     if (state.sp) parts.push([state.sp]);
@@ -629,7 +567,7 @@
     pill.hidden = !html;
     $('pilltext').innerHTML = html || '';
     $('pillclearwrap').hidden = !clear;
-    $('pillclear').textContent = state.crushOnly && allFams() && !sizeActive() && !state.sp ? 'Clear' : 'Clear filters';
+    $('pillclear').textContent = state.favOnly && allFams() && !sizeActive() && !state.sp ? 'Clear' : 'Clear filters';
   }
 
   function clearFilters() {
@@ -639,7 +577,7 @@
     $('dmin').value = state.dmin;
     $('dmax').value = state.dmax;
     state.sp = null;
-    state.crushOnly = false;
+    state.favOnly = false;
     changed();
   }
   $('pillclear').onclick = clearFilters;
@@ -742,7 +680,7 @@
     const signal = fresh('count');
     state.match = null;
     renderPill();
-    if (state.crushOnly) return; // the pill counts crushes locally
+    if (state.favOnly) return; // the pill counts favorites locally
     try {
       const noFilters = allFams() && !sizeActive() && !state.sp;
       state.match = noFilters && state.total != null
@@ -779,7 +717,7 @@
   function changed({ species = true } = {}) {
     renderControls();
     renderList();
-    renderCrushes();
+    renderFavorites();
     renderPill();
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => {
@@ -885,7 +823,7 @@
     renderControls();
     renderPill();
     renderList();
-    renderCrushes();
+    renderFavorites();
 
     // Open in a useful state: the largest recorded tree, selected.
     if (largest?.geometry) {

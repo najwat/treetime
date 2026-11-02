@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>TreeTime</title>
-  <meta name="description" content="TreeTime: explore every street tree in Seattle by tree family, trunk diameter and species, and save your crushes.">
+  <meta name="description" content="TreeTime: explore every street tree in Seattle by tree family, trunk diameter and species, and save your favorites.">
   <meta name="application-name" content="TreeTime">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="TreeTime">
   <meta property="og:title" content="TreeTime">
-  <meta property="og:description" content="Explore every street tree in Seattle by tree family, trunk diameter and species, and save your crushes.">
+  <meta property="og:description" content="Explore every street tree in Seattle by tree family, trunk diameter and species, and save your favorites.">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="TreeTime">
-  <meta name="twitter:description" content="Explore every street tree in Seattle by tree family, trunk diameter and species, and save your crushes.">
+  <meta name="twitter:description" content="Explore every street tree in Seattle by tree family, trunk diameter and species, and save your favorites.">
   <script>
     // Apply a saved theme before first paint to avoid a flash of the wrong theme.
     try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
@@ -57,8 +57,8 @@
       </section>
 
       <section>
-        <p class="label"><span>Your crushes <span class="crushn" id="crushn"></span></span> <button class="clear" id="crushonly" type="button" aria-pressed="false" hidden>Show only these</button></p>
-        <div class="list" id="crushlist"></div>
+        <p class="label"><span>Favorites <span class="favn" id="favn"></span></span> <button class="clear" id="favonly" type="button" aria-pressed="false" hidden>Show only these</button></p>
+        <div class="list" id="favs"></div>
       </section>
 
       <footer>
@@ -87,21 +87,11 @@
     <div class="card" id="card" hidden>
       <button class="x" id="cardx" type="button" aria-label="Close">×</button>
       <h2 id="cname"></h2>
-      <div class="species" id="cspecies" hidden></div>
       <div class="gen" id="cgen"></div>
       <dl id="cdl"></dl>
-      <div class="crushinfo" id="crush" hidden>
-        <p class="since"><span id="csince"></span><button class="link" id="crename" type="button" hidden>Rename</button></p>
-        <button class="prompt" id="cprompt" type="button" hidden>It’s getting serious. Give them a name?</button>
-        <form class="nameform" id="cnameform" hidden>
-          <input id="cnameinput" type="text" maxlength="40" autocomplete="off" aria-label="Name for this tree" placeholder="Name">
-          <button type="submit">Save</button>
-          <button type="button" id="cnamecancel">Cancel</button>
-        </form>
-      </div>
       <div class="card-actions">
         <a id="clink" href="#" target="_blank" rel="noopener" aria-label="Open in Google Maps">Google Maps ↗</a>
-        <button class="save" id="cheart" type="button" aria-pressed="false" aria-label="Add to crushes">♡&#xFE0E; Crush</button>
+        <button class="save" id="cfav" type="button" aria-pressed="false">☆ Save</button>
       </div>
     </div>
   </main>
