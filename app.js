@@ -213,13 +213,13 @@
   const BASEMAPS = {
     light: {
       style: 'https://tiles.openfreemap.org/styles/positron',
-      ground: '#f4f6f1', minor: '#ffffff', major: '#ffffff', casing: '#e2e7de', rail: '#e2e7de',
+      ground: '#f4f6f1', minor: '#ffffff', major: '#ffffff', casing: '#e2e7de', rail: '#e2e7de', path: '#e2e7de',
       building: '#ebefe8', park: '#e5eee1', water: '#dce7ea', boundary: '#d3dacf',
       label: '#8a958d', halo: '#ffffff', roadLabelMinZoom: null,
     },
     dark: {
       style: 'https://tiles.openfreemap.org/styles/dark',
-      ground: '#0f1411', minor: '#1a221d', major: '#243029', casing: null, rail: '#1a221d',
+      ground: '#0f1411', minor: '#1a221d', major: '#243029', casing: null, rail: '#1a221d', path: '#161d19',
       building: '#141a16', park: '#122019', water: '#0d1517', boundary: '#243029',
       label: '#7d8a81', halo: '#0f1411', roadLabelMinZoom: 15,
     },
@@ -276,6 +276,11 @@
           let color = major ? p.major : p.minor;
           if (/casing/.test(id)) { if (!p.casing) { hide(); out.push(lyr); continue; } color = p.casing; }
           else if (/rail/.test(id)) color = p.rail;
+          else if (/path|footway|pier|cycle|steps/.test(id)) {
+            // Footpaths and sidewalks: thin and close to the ground so they don't compete with trees.
+            color = p.path;
+            lyr.paint['line-width'] = ['interpolate', ['linear'], ['zoom'], 15, 0.5, 18, 1.5, 20, 2.5];
+          }
           lyr.paint['line-color'] = color;
           lyr.paint['line-opacity'] = 1;
           delete lyr.paint['line-pattern'];
@@ -294,7 +299,10 @@
         out.splice(k, 0, c);
       }
     }
-    style.layers = out;
+    // Labels go on top, in their original order. The tree layer is inserted just
+    // below the first label, so this keeps every road, path and building under
+    // the dots even if a style puts some labels early in its stack.
+    style.layers = [...out.filter((lyr) => lyr.type !== 'symbol'), ...out.filter((lyr) => lyr.type === 'symbol')];
     return style;
   }
 
