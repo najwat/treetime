@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- TreeTime icon: a rounded canopy on a short trunk, in the app's moss green. -->
+  <style>
+    .tree { fill: #2f6b46; }
+    @media (prefers-color-scheme: dark) { .tree { fill: #7cc79a; } }
+  </style>
+  <g class="tree">
+    <rect x="14" y="17" width="4" height="13" rx="1.5"/>
+    <circle cx="16" cy="11" r="8.5"/>
+    <circle cx="9.5" cy="16" r="6.5"/>
+    <circle cx="22.5" cy="16" r="6.5"/>
+    <rect x="9.5" y="14" width="13" height="8.5"/>
+  </g>
+</svg>

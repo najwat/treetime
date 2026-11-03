@@ -99,6 +99,9 @@ The `.nojekyll` file tells Pages to serve the files as they are, without running
 index.html               page markup; loads MapLibre GL JS 5.24.0 from unpkg and fonts from Google Fonts
 style.css                design tokens (light and dark), layout, components
 app.js                   config, ArcGIS queries, filters, map, basemap styling
+favicon.svg              site icon (switches to the light green in dark mode)
+favicon-32.png           PNG icon for browsers without SVG icons
+apple-touch-icon.png     180×180 home-screen icon
 DESIGN.md                design brief
 reference/prototype.html working design prototype (sample data, no basemap)
 .nojekyll                serve the files as-is on GitHub Pages
