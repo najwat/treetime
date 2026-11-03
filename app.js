@@ -33,35 +33,25 @@
   };
 
   // Tree families, grouped by genus (the first word of the scientific name).
-  // The first eight follow the prototype. "Flowering trees" and "Shade trees"
-  // keep common Seattle genera out of "Everything else"; both mean "other
-  // flowering / shade trees", since cherries, maples, oaks etc. have their own chips.
+  // Real botanical groups only; any genus not listed is "Everything else".
   const FAMS = [
-    { id: 'maple',     name: 'Maples',           g: ['Acer'] },
-    { id: 'cherry',    name: 'Cherries & plums', g: ['Prunus'] },
-    { id: 'pear',      name: 'Pears & apples',   g: ['Pyrus', 'Malus'] },
-    { id: 'flowering', name: 'Flowering trees',  g: ['Cornus', 'Crataegus', 'Magnolia', 'Amelanchier', 'Styrax', 'Cercis', 'Lagerstroemia',
-                                                     'Syringa', 'Halesia', 'Stewartia', 'Koelreuteria', 'Sorbus', 'Arbutus', 'Chionanthus',
-                                                     'Oxydendrum', 'Davidia', 'Laburnum', 'Cladrastis', 'Albizia', 'Franklinia', 'Heptacodium',
-                                                     'Cotinus', 'Cydonia', 'Mespilus', 'Prunus-x'] },
-    { id: 'ash',       name: 'Ashes',            g: ['Fraxinus'] },
-    { id: 'birch',     name: 'Birches',          g: ['Betula'] },
-    { id: 'oak',       name: 'Oaks',             g: ['Quercus'] },
-    { id: 'shade',     name: 'Shade trees',      g: ['Platanus', 'Tilia', 'Liquidambar', 'Ulmus', 'Gleditsia', 'Zelkova', 'Carpinus', 'Aesculus',
-                                                     'Fagus', 'Celtis', 'Liriodendron', 'Cercidiphyllum', 'Nyssa', 'Parrotia', 'Robinia', 'Ginkgo',
-                                                     'Gymnocladus', 'Catalpa', 'Juglans', 'Ostrya', 'Populus', 'Salix', 'Alnus', 'Styphnolobium',
-                                                     'Sophora', 'Corylus', 'Pterocarya', 'Phellodendron', 'Sassafras', 'Morus', 'Eucommia', 'Ailanthus'] },
-    { id: 'conifer',   name: 'Conifers',         g: ['Thuja', 'Juniperus', 'Chamaecyparis', 'Cedrus', 'Pinus', 'Picea', 'Abies', 'Tsuga',
-                                                     'Sequoia', 'Sequoiadendron', 'Metasequoia', 'Cupressus', 'Pseudotsuga', 'Calocedrus',
-                                                     'Cryptomeria', 'Larix', 'Taxodium', 'Taxus'] },
-    { id: 'other',     name: 'Everything else',  g: [] },
+    { id: 'maple',   name: 'Maples',           g: ['Acer'] },
+    { id: 'cherry',  name: 'Cherries & plums', g: ['Prunus'] },
+    { id: 'pear',    name: 'Pears & apples',   g: ['Pyrus', 'Malus'] },
+    { id: 'oak',     name: 'Oaks',             g: ['Quercus'] },
+    { id: 'ash',     name: 'Ashes',            g: ['Fraxinus'] },
+    { id: 'birch',   name: 'Birches',          g: ['Betula'] },
+    { id: 'conifer', name: 'Conifers',         g: ['Thuja', 'Juniperus', 'Chamaecyparis', 'Cedrus', 'Pinus', 'Picea', 'Abies', 'Tsuga',
+                                                 'Sequoia', 'Sequoiadendron', 'Metasequoia', 'Cupressus', 'Pseudotsuga', 'Calocedrus',
+                                                 'Cryptomeria', 'Larix', 'Taxodium', 'Taxus'] },
+    { id: 'other',   name: 'Everything else',  g: [] },
   ];
   const OTHER = FAMS.length - 1;
   // Plain-word nouns for the filter pill: [singular, plural].
   const NOUNS = {
     maple: ['maple', 'maples'], cherry: ['cherry or plum', 'cherries & plums'], pear: ['pear or apple', 'pears & apples'],
-    flowering: ['flowering tree', 'flowering trees'], ash: ['ash', 'ashes'], birch: ['birch', 'birches'], oak: ['oak', 'oaks'],
-    shade: ['shade tree', 'shade trees'], conifer: ['conifer', 'conifers'], other: ['other tree', 'other trees'],
+    oak: ['oak', 'oaks'], ash: ['ash', 'ashes'], birch: ['birch', 'birches'], conifer: ['conifer', 'conifers'],
+    other: ['other tree', 'other trees'],
   };
   const famOfGenus = {};
   FAMS.forEach((f, i) => f.g.forEach((g) => { famOfGenus[g] = i; }));
@@ -81,7 +71,7 @@
     f: {}, oid: 'OBJECTID', maxRec: 2000,
     fams: new Set(FAMS.map((_, i) => i)),
     dmin: 0, dmax: CONFIG.sliderMax,
-    sp: null, q: '', showAll: false,
+    sp: null,
     favOnly: false,       // show only saved trees
     sel: null,            // selected feature
     total: null,          // all in-service trees
@@ -326,8 +316,10 @@
   // ---------------------------------------------------------------------------
   // Room around the city in the whole-city view: clear of the result pill (top)
   // and the zoom buttons (right); tighter on phones.
-  const fitPadding = () => ($('map').clientWidth < 500
-    ? { top: 52, bottom: 24, left: 16, right: 58 }
+  const isPhone = () => window.matchMedia('(max-width: 760px)').matches;
+  let sheetPeek = 172; // measured once the sheet is laid out
+  const fitPadding = () => (isPhone()
+    ? { top: 56, bottom: sheetPeek + 16, left: 16, right: 58 }
     : { top: 64, bottom: 40, left: 48, right: 72 });
 
   const map = new maplibregl.Map({
@@ -754,25 +746,23 @@
     });
   }
 
-  $('favonly').onclick = () => { state.favOnly = !state.favOnly; changed({ species: false }); };
+  $('savedonly').onchange = (e) => { state.favOnly = e.target.checked; changed({ species: false }); };
 
   function openFavorite(f) {
-    const ft = favFeature(f);
-    map.jumpTo({ center: [f.g.x, f.g.y], zoom: Math.max(map.getZoom(), CONFIG.detailZoom) });
-    select(ft);
-    if (window.matchMedia('(max-width: 760px)').matches) $('main').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (isPhone()) setSheet('collapsed');
+    map.flyTo({ center: [f.g.x, f.g.y], zoom: Math.max(map.getZoom(), CONFIG.detailZoom), duration: 900, essential: true });
+    select(favFeature(f));
   }
 
   function renderFavorites() {
     // Sidebar list
-    $('favn').textContent = favorites.length ? fmt.format(favorites.length) : '';
-    $('favonly').hidden = !favorites.length;
-    $('favonly').textContent = state.favOnly ? 'Show all trees' : 'Show only these';
-    $('favonly').setAttribute('aria-pressed', String(state.favOnly));
+    $('savedcount').textContent = favorites.length ? fmt.format(favorites.length) : '';
+    $('savedonlywrap').hidden = !favorites.length;
+    $('savedonly').checked = state.favOnly;
     const list = $('favs');
     list.innerHTML = '';
     if (!favorites.length) {
-      list.innerHTML = '<p>Tap ☆ Save on a tree\'s card to keep it here.</p>';
+      list.innerHTML = '<div class="empty"><p><b>No saved trees yet.</b></p><p>Tap any dot on the map to open its card, then tap <b>☆ Save</b>. Saved trees show up here and as ★ on the map.</p></div>';
     }
     for (const f of favorites) {
       const a = f.a;
@@ -783,7 +773,7 @@
       row.style.setProperty('--c', `var(--f-${FAMS[fam].id})`);
       const sub = [attr(a, state.f.address), d ? `${fmtIn(d)}″` : null].filter(Boolean).join(' · ');
       row.innerHTML = `<button type="button" class="fav-open"><i></i><span><b></b><small></small></span></button>
-        <button type="button" class="fav-x" aria-label="Remove from favorites">×</button>`;
+        <button type="button" class="fav-x" aria-label="Remove from saved">×</button>`;
       row.querySelector('b').textContent = attr(a, state.f.common) || 'Unknown species';
       row.querySelector('small').textContent = sub;
       row.querySelector('.fav-open').onclick = () => openFavorite(f);
@@ -802,8 +792,8 @@
       el.type = 'button';
       el.className = 'fav-pin';
       el.textContent = '★';
-      el.title = attr(f.a, state.f.common) || 'Favorite tree';
-      el.setAttribute('aria-label', `Favorite: ${el.title}`);
+      el.title = attr(f.a, state.f.common) || 'Saved tree';
+      el.setAttribute('aria-label', `Saved tree: ${el.title}`);
       el.addEventListener('click', (e) => { e.stopPropagation(); select(favFeature(f)); });
       return new maplibregl.Marker({ element: el }).setLngLat([f.g.x, f.g.y]).addTo(map);
     });
@@ -817,7 +807,7 @@
     const on = isFav(state.sel);
     b.setAttribute('aria-pressed', String(on));
     b.textContent = on ? '★ Saved' : '☆ Save';
-    b.title = on ? 'Remove from favorites' : 'Add to favorites';
+    b.title = on ? 'Remove from saved trees' : 'Save this tree';
   }
   $('cfav').onclick = () => { if (state.sel) toggleFavorite(state.sel); };
 
@@ -849,7 +839,7 @@
     const one = n === 1;
     let noun = one ? 'tree' : 'trees';
     let famShown = false;
-    if (state.favOnly) noun = one ? 'favorite' : 'favorites';
+    if (state.favOnly) noun = one ? 'saved tree' : 'saved trees';
     else if (!state.sp && state.fams.size === 1) { noun = NOUNS[FAMS[[...state.fams][0]].id][one ? 0 : 1]; famShown = true; }
     const parts = [[`${n == null ? '…' : fmt.format(n)} ${noun}`]];
     if (state.sp) parts.push([state.sp]);
@@ -891,6 +881,7 @@
     $('dmax').value = state.dmax;
     state.sp = null;
     state.favOnly = false;
+    customOpen = false;
     changed();
   }
   $('pillclear').onclick = clearFilters;
@@ -948,43 +939,147 @@
     $('rangeout').textContent = sizeActive() ? `${state.dmin}–${state.dmax >= max ? max + '+' : state.dmax} in` : 'Any size';
     $('fill').style.left = `${(state.dmin / max) * 100}%`;
     $('fill').style.width = `${((state.dmax - state.dmin) / max) * 100}%`;
-    $('clearsp').hidden = !state.sp;
+    // The slider stays open while a custom (non-preset) range is set.
+    const custom = sizeActive() && !SIZES.some((sz) => state.dmin === sz.r[0] && state.dmax === sz.r[1]);
+    const open = customOpen || custom;
+    $('custom').hidden = !open;
+    $('customtoggle').setAttribute('aria-expanded', String(open));
+    $('customtoggle').classList.toggle('on', open);
+    syncSearch();
+  }
+  let customOpen = false;
+  $('customtoggle').onclick = () => {
+    const custom = sizeActive() && !SIZES.some((sz) => state.dmin === sz.r[0] && state.dmax === sz.r[1]);
+    if (custom && customOpen === false) return; // can't hide the slider while it holds the only record of the range
+    customOpen = !customOpen;
+    renderControls();
+  };
+
+  // ---------------------------------------------------------------------------
+  // Species search: a combobox that is the species filter. Typing suggests
+  // matching species (with counts for the current filters); empty + focused
+  // shows the five most common species in the current map view.
+  // ---------------------------------------------------------------------------
+  const qEl = $('q'), sugEl = $('suggest');
+  let sugItems = [];        // [{name, count}] or null while loading
+  let sugMode = 'match';    // 'match' | 'view'
+  let sugActive = -1;
+  let viewTop = { key: '', rows: null };
+
+  const speciesColor = (name) => `var(--f-${FAMS[speciesInfo.get(name)?.fam ?? OTHER].id})`;
+
+  function syncSearch() {
+    if (document.activeElement !== qEl) qEl.value = state.sp || '';
+    $('qclear').hidden = !qEl.value && !state.sp;
   }
 
-  $('q').oninput = (e) => { state.q = e.target.value.trim().toLowerCase(); state.showAll = false; renderList(); };
-  $('clearsp').onclick = () => { state.sp = null; changed({ species: false }); };
-  $('more').onclick = () => { state.showAll = !state.showAll; renderList(); };
-
-  function renderList() {
-    let rows = speciesRows;
-    if (state.q) {
-      rows = rows.filter((r) => `${r.name} ${speciesInfo.get(r.name)?.sci || ''}`.toLowerCase().includes(state.q));
+  function renderSuggest() {
+    const head = sugMode === 'view' ? '<p class="suggest-head">Most common in this view</p>' : '';
+    let body;
+    if (sugItems === null) body = '<p class="suggest-empty">Loading…</p>';
+    else if (!sugItems.length) body = `<p class="suggest-empty">${sugMode === 'view' ? 'No trees in this view.' : 'No species match.'}</p>`;
+    else {
+      body = sugItems.map((r, k) => `<div class="opt" role="option" id="sug-${k}" data-k="${k}" aria-selected="${k === sugActive}">
+        <i style="--c:${speciesColor(r.name)}"></i><span>${esc(r.name)}</span><em>${fmt.format(r.count)}</em></div>`).join('');
     }
-    const max = rows.length ? Math.max(...rows.map((r) => r.count)) : 1;
-    const lim = state.showAll || state.q ? rows.length : CONFIG.listTop;
-    const list = $('list');
-    list.innerHTML = '';
-    if (!rows.length) {
-      list.innerHTML = '<p>No species match. Try a different search or widen the filters.</p>';
-    }
-    for (const r of rows.slice(0, lim)) {
-      const info = speciesInfo.get(r.name);
-      const fam = info ? info.fam : OTHER;
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'sp' + (state.sp === r.name ? ' on' : '');
-      b.setAttribute('aria-pressed', String(state.sp === r.name));
-      b.style.setProperty('--c', `var(--f-${FAMS[fam].id})`);
-      b.innerHTML = `<i></i><span></span><em>${fmt.format(r.count)}</em><div class="bar"><b style="width:${(r.count / max) * 100}%"></b></div>`;
-      b.querySelector('span').textContent = r.name;
-      b.title = r.name + (info?.sci ? ` (${info.sci})` : '');
-      b.onclick = () => { state.sp = state.sp === r.name ? null : r.name; changed({ species: false }); };
-      list.appendChild(b);
-    }
-    const more = $('more');
-    more.hidden = !!state.q || rows.length <= CONFIG.listTop;
-    more.textContent = state.showAll ? `Show top ${CONFIG.listTop}` : `Show all ${fmt.format(rows.length)} species`;
+    sugEl.innerHTML = head + body;
+    qEl.setAttribute('aria-activedescendant', sugActive >= 0 ? `sug-${sugActive}` : '');
+    sugEl.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }
+  function openSuggest() { sugEl.hidden = false; qEl.setAttribute('aria-expanded', 'true'); }
+  function closeSuggest() { sugEl.hidden = true; qEl.setAttribute('aria-expanded', 'false'); sugActive = -1; }
+
+  async function loadViewTop() {
+    const env = envelope();
+    const C = state.f.common;
+    if (!env || !C) { sugItems = []; renderSuggest(); return; }
+    const where = `${buildWhere({ species: false })} AND ${C} IS NOT NULL`;
+    const key = where + env.geometry;
+    if (viewTop.key === key && viewTop.rows) { sugItems = viewTop.rows; sugActive = -1; renderSuggest(); return; }
+    sugItems = null; renderSuggest();
+    const signal = fresh('viewtop');
+    try {
+      const r = await query({
+        where, ...env,
+        groupByFieldsForStatistics: C,
+        outStatistics: JSON.stringify([{ statisticType: 'count', onStatisticField: state.oid, outStatisticFieldName: 'n' }]),
+        orderByFields: 'n DESC',
+        resultRecordCount: '5',
+      }, signal);
+      const rows = (r.features || []).map((ft) => ({ name: attr(ft.attributes, C), count: attr(ft.attributes, 'n') }))
+        .filter((x) => x.name && String(x.name).trim()).slice(0, 5);
+      viewTop = { key, rows };
+      if (sugMode === 'view') { sugItems = rows; sugActive = -1; renderSuggest(); }
+    } catch (e) {
+      if (e.name !== 'AbortError' && sugMode === 'view') { sugItems = []; renderSuggest(); }
+    }
+  }
+
+  function updateSuggest() {
+    const t = qEl.value.trim().toLowerCase();
+    if (!t || qEl.value === state.sp) {
+      sugMode = 'view';
+      loadViewTop();
+    } else {
+      sugMode = 'match';
+      sugItems = speciesRows
+        .filter((r) => `${r.name} ${speciesInfo.get(r.name)?.sci || ''}`.toLowerCase().includes(t))
+        .slice(0, 8);
+      sugActive = sugItems.length ? 0 : -1;
+      renderSuggest();
+    }
+    openSuggest();
+  }
+
+  function pickSpecies(name) {
+    state.sp = name;
+    closeSuggest();
+    qEl.value = name;
+    qEl.blur();
+    changed({ species: false });
+  }
+
+  qEl.addEventListener('focus', () => {
+    if (isPhone()) setSheet('expanded');
+    if (qEl.value === state.sp) qEl.select();
+    updateSuggest();
+  });
+  qEl.addEventListener('input', () => {
+    $('qclear').hidden = !qEl.value && !state.sp;
+    if (!qEl.value && state.sp) { state.sp = null; changed({ species: false }); }
+    updateSuggest();
+  });
+  qEl.addEventListener('keydown', (e) => {
+    const n = sugItems?.length || 0;
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (sugEl.hidden) updateSuggest(); else if (n) { sugActive = (sugActive + 1) % n; renderSuggest(); } }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (n) { sugActive = (sugActive - 1 + n) % n; renderSuggest(); } }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const pick = sugItems?.[sugActive >= 0 ? sugActive : 0];
+      if (pick) pickSpecies(pick.name);
+    } else if (e.key === 'Escape') { closeSuggest(); qEl.value = state.sp || ''; qEl.blur(); }
+  });
+  qEl.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (document.activeElement === qEl) return;
+      closeSuggest();
+      qEl.value = state.sp || '';
+      $('qclear').hidden = !state.sp;
+    }, 0);
+  });
+  sugEl.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus so the click lands
+  sugEl.addEventListener('click', (e) => {
+    const opt = e.target.closest('.opt');
+    if (opt) pickSpecies(sugItems[+opt.dataset.k].name);
+  });
+  $('qclear').onclick = () => {
+    const had = !!state.sp;
+    state.sp = null;
+    qEl.value = '';
+    $('qclear').hidden = true;
+    if (had) changed({ species: false });
+    qEl.focus();
+  };
 
   // ---------------------------------------------------------------------------
   // Data refresh
@@ -1019,17 +1114,15 @@
       speciesRows = feats
         .map((ft) => ({ name: attr(ft.attributes, C), count: attr(ft.attributes, 'n') }))
         .filter((r) => r.name && String(r.name).trim());
-      renderList();
+      if (!sugEl.hidden && sugMode === 'match') updateSuggest();
     } catch (e) {
       if (e.name === 'AbortError') return;
-      $('list').innerHTML = "<p>Couldn't load species. Try again in a moment.</p>";
     }
   }
 
   let refreshTimer;
   function changed({ species = true } = {}) {
     renderControls();
-    renderList();
     renderFavorites();
     renderPill();
     clearTimeout(refreshTimer);
@@ -1048,21 +1141,120 @@
   }
   darkMq.addEventListener?.('change', onTheme);
 
-  // Theme switch: System (no data-theme), Light or Dark. Saved per browser.
-  const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
-  const saved = root.dataset.theme === 'light' || root.dataset.theme === 'dark' ? root.dataset.theme : 'system';
-  themeInputs.forEach((inp) => {
-    inp.checked = inp.value === saved;
-    inp.addEventListener('change', () => {
-      if (!inp.checked) return;
-      if (inp.value === 'system') delete root.dataset.theme;
-      else root.dataset.theme = inp.value;
-      try {
-        if (inp.value === 'system') localStorage.removeItem('theme');
-        else localStorage.setItem('theme', inp.value);
-      } catch (e) { /* storage unavailable: the choice lasts for this visit */ }
-    });
+  // Theme button: cycles System → Light → Dark. System = no data-theme.
+  const THEMES = ['system', 'light', 'dark'];
+  const THEME_LABEL = { system: 'System', light: 'Light', dark: 'Dark' };
+  const THEME_ICON = {
+    system: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2a6 6 0 0 0 0 12z" fill="currentColor"/></svg>',
+    light: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></g></svg>',
+    dark: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z" fill="currentColor"/></svg>',
+  };
+  const themeChoice = () => (root.dataset.theme === 'light' || root.dataset.theme === 'dark' ? root.dataset.theme : 'system');
+  function renderThemeBtn() {
+    const cur = themeChoice();
+    const next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
+    const label = `Theme: ${THEME_LABEL[cur]}. Switch to ${THEME_LABEL[next]}`;
+    const b = $('themebtn');
+    b.innerHTML = THEME_ICON[cur];
+    b.title = label;
+    b.setAttribute('aria-label', label);
+  }
+  $('themebtn').onclick = () => {
+    const next = THEMES[(THEMES.indexOf(themeChoice()) + 1) % THEMES.length];
+    if (next === 'system') delete root.dataset.theme;
+    else root.dataset.theme = next;
+    try {
+      if (next === 'system') localStorage.removeItem('theme');
+      else localStorage.setItem('theme', next);
+    } catch (e) { /* storage unavailable: the choice lasts for this visit */ }
+    renderThemeBtn();
+  };
+  renderThemeBtn();
+
+  // About dialog
+  const about = $('about');
+  $('aboutbtn').onclick = () => about.showModal();
+  about.addEventListener('click', (e) => { if (e.target === about) about.close(); }); // click on the backdrop
+
+  // Tabs: Explore / Saved. The last tab is remembered.
+  const TABS = ['explore', 'saved'];
+  function setTab(name, focus = false) {
+    for (const t of TABS) {
+      const on = t === name;
+      const tab = $(`tab-${t}`);
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;
+      $(`panel-${t}`).hidden = !on;
+      if (on && focus) tab.focus();
+    }
+    try { localStorage.setItem('tab', name); } catch (e) { /* ignore */ }
+    if (isPhone()) requestAnimationFrame(() => setSheet(sheetState, false));
+  }
+  for (const t of TABS) $(`tab-${t}`).onclick = () => setTab(t);
+  $('tab-explore').parentElement.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const cur = TABS.findIndex((t) => $(`tab-${t}`).getAttribute('aria-selected') === 'true');
+    setTab(TABS[(cur + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length], true);
   });
+
+  // ---------------------------------------------------------------------------
+  // Phones: the sidebar is a draggable bottom sheet over a full-screen map.
+  // Collapsed it shows the header, the tab bar and the first control of the
+  // active tab (the search field on Explore).
+  // ---------------------------------------------------------------------------
+  const sheet = $('sheet');
+  let sheetState = 'collapsed';
+  const sheetFull = () => sheet.getBoundingClientRect().height;
+  function measurePeek() {
+    const top = sheet.getBoundingClientRect().top;
+    const panel = TABS.map((t) => $(`panel-${t}`)).find((p) => !p.hidden);
+    const first = panel?.firstElementChild;
+    const bottom = (first && !first.hidden ? first : $('tab-explore').parentElement).getBoundingClientRect().bottom;
+    return Math.round(Math.min(bottom - top + 14, sheetFull()));
+  }
+  function setSheet(stateName, animate = true) {
+    if (!isPhone()) { sheet.style.transform = ''; root.style.removeProperty('--sheet-visible'); return; }
+    sheetState = stateName;
+    sheetPeek = measurePeek();
+    const offset = stateName === 'expanded' ? 0 : sheetFull() - sheetPeek;
+    sheet.classList.toggle('animate', animate);
+    sheet.style.transform = `translateY(${offset}px)`;
+    sheet.dataset.state = stateName;
+    $('grab').setAttribute('aria-label', stateName === 'expanded' ? 'Collapse panel' : 'Expand panel');
+    root.style.setProperty('--sheet-visible', `${stateName === 'expanded' ? sheetFull() : sheetPeek}px`);
+  }
+
+  // Drag from the grab handle, header or tab bar; tap the handle to toggle.
+  let drag = null;
+  sheet.addEventListener('pointerdown', (e) => {
+    if (!isPhone() || !e.target.closest('.grab, .hdr, .tabs')) return;
+    const m = /translateY\((-?[\d.]+)px\)/.exec(sheet.style.transform);
+    drag = { y: e.clientY, start: m ? +m[1] : 0, moved: false, t: performance.now(), id: e.pointerId };
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved && Math.abs(dy) < 6) return;
+    drag.moved = true;
+    sheet.classList.remove('animate');
+    const max = sheetFull() - sheetPeek;
+    sheet.style.transform = `translateY(${Math.min(max, Math.max(0, drag.start + dy))}px)`;
+  });
+  window.addEventListener('pointerup', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag; drag = null;
+    if (!d.moved) { if (e.target.closest('.grab')) setSheet(sheetState === 'expanded' ? 'collapsed' : 'expanded'); return; }
+    sheet.dataset.justDragged = '1'; // swallow the click that follows a drag
+    setTimeout(() => delete sheet.dataset.justDragged, 0);
+    const dy = e.clientY - d.y, v = dy / Math.max(1, performance.now() - d.t); // px per ms
+    const max = sheetFull() - sheetPeek, pos = Math.min(max, Math.max(0, d.start + dy));
+    setSheet(v < -0.35 || (v <= 0.35 && pos < max / 2) ? 'expanded' : 'collapsed');
+  });
+  // A drag that ends on a tab shouldn't also switch tabs.
+  sheet.addEventListener('click', (e) => { if (sheet.dataset.justDragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+  window.matchMedia('(max-width: 760px)').addEventListener?.('change', () => setSheet('collapsed', false));
+  window.addEventListener('resize', () => { if (isPhone()) setSheet(sheetState, false); });
+
   new MutationObserver(onTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 
   // ---------------------------------------------------------------------------
@@ -1135,7 +1327,6 @@
     else famsEl.closest('section').hidden = true;
     renderControls();
     renderPill();
-    renderList();
     renderFavorites();
 
     // Open on the whole city. On wider screens, also open the largest recorded
@@ -1144,6 +1335,10 @@
     loadView();
   }
 
+  let initialTab = 'explore';
+  try { if (TABS.includes(localStorage.getItem('tab'))) initialTab = localStorage.getItem('tab'); } catch (e) { /* ignore */ }
+  setTab(initialTab);
+  setSheet('collapsed', false);
   applyBasemap();
   init();
 })();

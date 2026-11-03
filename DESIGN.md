@@ -4,8 +4,8 @@
 
 ## Layout
 - Desktop: fixed 340px filter sidebar on the left, full-height map on the right.
-- Phone (≤760px): the TreeTime heading, then the map at ~58% of the viewport height, then the filters below it.
-- Sidebar order: TreeTime heading, Tree family chips, Trunk diameter (presets plus a two-thumb range slider), Species search and ranked list, Favorites, footer (theme switch and data credit).
+- Phone (≤760px): full-screen map; the sidebar is a draggable bottom sheet, collapsed to the header, tab bar and search field.
+- Sidebar: header (TreeTime, theme cycle button, About dialog with the data note), then Explore / Saved tabs. Explore: species search (typeahead; top 5 in view when empty), family chips, size presets with a Custom slider. Saved: saved trees, "Show only these on map". Explore fits without scrolling at 800px tall.
 
 ## Color
 - Cool, slightly green neutrals (`--bg #eef1ec`, `--panel #f8faf6`, `--ink #1d2a22`). No pure grey and no pure white.

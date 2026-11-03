@@ -26,62 +26,77 @@
   <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css"
         integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css?v=20261103b">
+  <link rel="stylesheet" href="style.css?v=20261103c">
 </head>
 <body>
 <div class="app">
-  <aside>
-    <div class="top">
-      <header>
-        <h1>TreeTime</h1>
-      </header>
+  <aside id="sheet" class="sheet" aria-label="Filters and saved trees">
+    <div class="grab" id="grab" aria-hidden="true"><span></span></div>
+    <header class="hdr">
+      <h1>TreeTime</h1>
+      <div class="hdr-actions">
+        <button class="iconbtn" id="themebtn" type="button" aria-label="Theme: System" title="Theme: System"></button>
+        <button class="linkbtn" id="aboutbtn" type="button" aria-haspopup="dialog">About</button>
+      </div>
+    </header>
+
+    <div class="tabs" role="tablist" aria-label="Sidebar">
+      <button class="tab" id="tab-explore" role="tab" type="button" aria-controls="panel-explore" aria-selected="true">Explore</button>
+      <button class="tab" id="tab-saved" role="tab" type="button" aria-controls="panel-saved" aria-selected="false" tabindex="-1">Saved <span class="count" id="savedcount"></span></button>
     </div>
 
-    <div class="rest">
-      <section>
-        <p class="label">Tree family <button class="clear" id="allfam" type="button" hidden>Show all</button></p>
-        <div class="chips" id="fams"></div>
-      </section>
+    <div class="panels">
+      <section class="panel" id="panel-explore" role="tabpanel" aria-labelledby="tab-explore">
+        <div class="field">
+          <div class="combo">
+            <svg class="combo-icon" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <input class="search" id="q" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest"
+                   placeholder="Search species, e.g. ginkgo, oak" autocomplete="off" spellcheck="false" aria-label="Species">
+            <button class="combo-clear" id="qclear" type="button" aria-label="Clear species" hidden>×</button>
+            <div class="suggest" id="suggest" role="listbox" aria-label="Species" hidden></div>
+          </div>
+        </div>
 
-      <section>
-        <p class="label">Trunk diameter <output id="rangeout">Any size</output></p>
-        <div class="sizes" id="sizes"></div>
-        <div class="range">
-          <div class="track"><div class="fill" id="fill"></div></div>
-          <input type="range" id="dmin" min="0" max="72" value="0" step="1" aria-label="Minimum trunk diameter in inches">
-          <input type="range" id="dmax" min="0" max="72" value="72" step="1" aria-label="Maximum trunk diameter in inches">
+        <div class="field">
+          <p class="label">Tree family <button class="clear" id="allfam" type="button" hidden>Show all</button></p>
+          <div class="chips" id="fams"></div>
+        </div>
+
+        <div class="field">
+          <p class="label"><span>Trunk diameter <output id="rangeout">Any size</output></span>
+            <button class="clear" id="customtoggle" type="button" aria-expanded="false" aria-controls="custom">Custom</button></p>
+          <div class="sizes" id="sizes"></div>
+          <div class="range" id="custom" hidden>
+            <div class="track"><div class="fill" id="fill"></div></div>
+            <input type="range" id="dmin" min="0" max="72" value="0" step="1" aria-label="Minimum trunk diameter in inches">
+            <input type="range" id="dmax" min="0" max="72" value="72" step="1" aria-label="Maximum trunk diameter in inches">
+          </div>
         </div>
       </section>
 
-      <section>
-        <p class="label">Species <button class="clear" id="clearsp" type="button" hidden>Clear species</button></p>
-        <input class="search" id="q" type="search" placeholder="Search, e.g. ginkgo, oak, cherry" autocomplete="off" aria-label="Search species">
-        <div class="list" id="list"></div>
-        <button class="more" id="more" type="button" hidden></button>
-      </section>
-
-      <section>
-        <p class="label"><span>Favorites <span class="favn" id="favn"></span></span> <button class="clear" id="favonly" type="button" aria-pressed="false" hidden>Show only these</button></p>
+      <section class="panel" id="panel-saved" role="tabpanel" aria-labelledby="tab-saved" hidden>
+        <label class="switch" id="savedonlywrap" hidden>
+          <input type="checkbox" id="savedonly" role="switch">
+          <span class="switch-track" aria-hidden="true"><span></span></span>
+          Show only these on map
+        </label>
         <div class="list" id="favs"></div>
       </section>
-
-      <footer>
-        <fieldset class="theme">
-          <legend>Theme</legend>
-          <div class="seg">
-            <label><input type="radio" name="theme" value="system" checked><span>System</span></label>
-            <label><input type="radio" name="theme" value="light"><span>Light</span></label>
-            <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
-          </div>
-        </fieldset>
-        <p>
-          Data: <a href="https://data-seattlecitygis.opendata.arcgis.com/datasets/SeattleCityGIS::sdot-trees" target="_blank" rel="noopener">SDOT Trees</a>, City of Seattle.
-          Every in-service street tree, loaded live. Diameter is the city's recorded trunk diameter in inches; values over 80″ are treated as not recorded.
-          Park and private-yard trees aren't in this dataset.
-        </p>
-      </footer>
     </div>
   </aside>
+
+  <dialog class="about" id="about" aria-labelledby="about-title">
+    <form method="dialog">
+      <button class="x" type="submit" aria-label="Close">×</button>
+    </form>
+    <h2 id="about-title">About TreeTime</h2>
+    <p>TreeTime maps every in-service street tree in Seattle, loaded live from the City of Seattle's
+      <a href="https://data-seattlecitygis.opendata.arcgis.com/datasets/SeattleCityGIS::sdot-trees" target="_blank" rel="noopener">SDOT Trees</a> data.</p>
+    <p>Diameter is the city's recorded trunk diameter in inches; values over 80″ are treated as not recorded.
+      Park and private-yard trees aren't in this dataset.</p>
+    <p class="fine">Map © OpenStreetMap contributors · OpenFreeMap. City boundary: City of Seattle.
+      Saved trees and your theme stay in this browser.</p>
+  </dialog>
 
   <main id="main">
     <div id="map" aria-label="Map of street trees. Drag to pan, scroll or use the buttons to zoom, click a dot for details."></div>
@@ -104,6 +119,6 @@
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"
         integrity="sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" crossorigin="anonymous"></script>
-<script src="app.js?v=20261103e"></script>
+<script src="app.js?v=20261103g"></script>
 </body>
 </html>
