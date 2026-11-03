@@ -1138,8 +1138,9 @@
     renderList();
     renderFavorites();
 
-    // Open on the whole city, with the largest recorded tree's card open.
-    if (largest?.geometry) select(largest);
+    // Open on the whole city. On wider screens, also open the largest recorded
+    // tree's card; on phones it would cover half the city, so it stays closed.
+    if (largest?.geometry && !window.matchMedia('(max-width: 760px)').matches) select(largest);
     loadView();
   }
 
