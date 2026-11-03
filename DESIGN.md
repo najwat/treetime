@@ -24,6 +24,7 @@
 - Filtered-out trees stay visible as tiny faint dots, so the street grid and context never disappear.
 - Controls: drag to pan, scroll or pinch to zoom, and +/−/reset buttons at top right. North arrow at top left. A metric scale bar at bottom left that updates with zoom.
 - Hovering a dot shows a tooltip with the name and diameter. Clicking a dot opens a detail card at bottom right with the name, genus, diameter in inches and cm, family, coordinates, and an "Open in Google Maps" link.
+- Seattle only: open on the whole-city fit; no zooming out past it; panning stops ~10% past the city. Outside the city, a ground-colored mask (75% light / 80% dark) sits above the basemap and below the trees and labels, with a 1px muted city outline at 50% opacity.
 - Basemap: MapLibre GL JS with OpenFreeMap vector tiles (Positron for light, Dark for dark), recolored to the tokens so it recedes behind the trees. Trees are a circle layer above roads and buildings and below street labels, with a 1px ground-colored halo.
 
 ## Interaction details

@@ -25,8 +25,10 @@
     sliderMax: 72,      // top slider stop means "72 and larger"
     areaLimit: 3000,    // above this many matches in view, ask the user to zoom in
     listTop: 12,        // species shown before "Show all"
-    home: { center: [47.6145, -122.3360], zoom: 11 }, // MapLibre zoom (512px tiles)
-    detailZoom: 16,
+    detailZoom: 16,     // MapLibre zoom (512px tiles) for jumping to one tree
+    boundaryUrl: 'data/seattle-boundary.geojson?v=20261103',
+    // Bounding box of the boundary file, used for the very first frame.
+    cityBox: [[-122.43578, 47.49554], [-122.23598, 47.73416]],
 
   };
 
@@ -197,11 +199,12 @@
   const root = document.documentElement;
   const darkMq = window.matchMedia('(prefers-color-scheme: dark)');
   const isDark = () => root.dataset.theme === 'dark' || (root.dataset.theme !== 'light' && darkMq.matches);
-  let famColors = [], ink = '#1d2a22';
+  let famColors = [], ink = '#1d2a22', muted = '#5d6b62';
   function readColors() {
     const c = getComputedStyle(root);
     famColors = FAMS.map((f) => c.getPropertyValue('--f-' + f.id).trim());
     ink = c.getPropertyValue('--ink').trim();
+    muted = c.getPropertyValue('--muted').trim();
   }
   readColors();
 
@@ -321,12 +324,17 @@
   // ---------------------------------------------------------------------------
   // Map
   // ---------------------------------------------------------------------------
-  const lngLat = ([lat, lng]) => [lng, lat];
+  // Room around the city in the whole-city view: clear of the result pill (top)
+  // and the zoom buttons (right); tighter on phones.
+  const fitPadding = () => ($('map').clientWidth < 500
+    ? { top: 52, bottom: 24, left: 16, right: 58 }
+    : { top: 64, bottom: 40, left: 48, right: 72 });
+
   const map = new maplibregl.Map({
     container: 'map',
     style: blankStyle(BASEMAPS[themeName()]),
-    center: lngLat(CONFIG.home.center),
-    zoom: CONFIG.home.zoom,
+    bounds: CONFIG.cityBox,
+    fitBoundsOptions: { padding: fitPadding() },
     maxZoom: 20,
     attributionControl: false,
     dragRotate: false,
@@ -346,6 +354,101 @@
     shownTheme = name;
     map.setStyle(style, { diff: false });
   }
+
+  // ---------------------------------------------------------------------------
+  // Seattle boundary: whole-city fit, zoom/pan limits, and an inverse mask that
+  // dims everything outside the city. The boundary is a local file.
+  // ---------------------------------------------------------------------------
+  const EMPTY = { type: 'FeatureCollection', features: [] };
+  let cityBox = CONFIG.cityBox;
+  let cityGeo = null;
+  let maskGeo = null;
+  let userMoved = false;
+  map.on('movestart', (e) => { if (e.originalEvent) userMoved = true; });
+
+  const maskPaint = () => ({ 'fill-color': BASEMAPS[themeName()].ground, 'fill-opacity': isDark() ? 0.8 : 0.75, 'fill-antialias': false });
+  const linePaint = () => ({ 'line-color': muted, 'line-opacity': 0.5, 'line-width': 1 });
+
+  function bboxOf(geo) {
+    let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+    for (const f of geo.features) {
+      const g = f.geometry;
+      for (const poly of g.type === 'MultiPolygon' ? g.coordinates : [g.coordinates]) {
+        for (const [x, y] of poly[0]) { w = Math.min(w, x); s = Math.min(s, y); e = Math.max(e, x); n = Math.max(n, y); }
+      }
+    }
+    return [[w, s], [e, n]];
+  }
+
+  // A world-sized polygon with each part of the city cut out as a hole.
+  function makeMask(geo) {
+    const world = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]];
+    const sign = (r) => { let a = 0; for (let k = 0; k < r.length - 1; k++) a += r[k][0] * r[k + 1][1] - r[k + 1][0] * r[k][1]; return Math.sign(a); };
+    const holes = [];
+    for (const f of geo.features) {
+      const g = f.geometry;
+      for (const poly of g.type === 'MultiPolygon' ? g.coordinates : [g.coordinates]) {
+        holes.push(sign(poly[0]) === sign(world) ? poly[0].slice().reverse() : poly[0]);
+      }
+    }
+    return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [world, ...holes] } };
+  }
+
+  const cityCamera = () => map.cameraForBounds(cityBox, { padding: fitPadding() });
+  function fitCity(animate) {
+    const c = cityCamera();
+    if (!c) return;
+    if (animate) map.easeTo({ ...c, duration: 450 });
+    else map.jumpTo(c);
+  }
+
+  // Limits. minZoom is the whole-city view. Panning is held to the city's box
+  // plus ~10%, at every zoom:
+  //  - zoomed in (view smaller than the box): the view can't go past the box;
+  //  - zoomed out (view larger than the box): the box can't leave the view.
+  // A fixed maxBounds can't do both: MapLibre keeps the whole viewport inside it,
+  // so a box sized for the city would block the whole-city view on wide screens,
+  // and one sized for that view would allow panning far past the city when
+  // zoomed in. A transform constraint applies the rule per zoom instead.
+  let cityMinZoom = 0;
+  const mercY = (lat) => (1 - Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / Math.PI) / 2;
+  const mercLat = (y) => (360 / Math.PI) * Math.atan(Math.exp(Math.PI * (1 - 2 * y))) - 90;
+  const clampAxis = (c, lo, hi, half) => (hi - lo >= 2 * half
+    ? Math.min(Math.max(c, lo + half), hi - half)      // view inside the box
+    : Math.min(Math.max(c, hi - half), lo + half));    // box inside the view
+
+  function constrainView(lngLat, zoom) {
+    const z = Math.max(zoom ?? cityMinZoom, cityMinZoom);
+    const el = map.getContainer();
+    const world = 512 * 2 ** z;
+    const [[w, s], [e, n]] = cityBox;
+    const dx = (e - w) * 0.1, dy = (n - s) * 0.1;
+    const lng = clampAxis(lngLat.lng, w - dx, e + dx, (el.clientWidth / 2 / world) * 360);
+    // latitude in Web Mercator units so the clamp is exact in screen space
+    const y = clampAxis(mercY(lngLat.lat), mercY(n + dy), mercY(s - dy), el.clientHeight / 2 / world);
+    return { center: new maplibregl.LngLat(lng, mercLat(y)), zoom: z };
+  }
+
+  function applyLimits() {
+    const c = cityCamera();
+    if (!c) return;
+    cityMinZoom = Math.max(0, c.zoom - 0.01);
+    map.setMinZoom(cityMinZoom);
+    map.setTransformConstrain(constrainView);
+  }
+
+  fetch(CONFIG.boundaryUrl)
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then((geo) => {
+      cityGeo = geo;
+      cityBox = bboxOf(geo);
+      maskGeo = makeMask(geo);
+      map.getSource('city-mask')?.setData(maskGeo);
+      map.getSource('city-line')?.setData(cityGeo);
+      applyLimits();
+      if (!userMoved) fitCity(false);
+    })
+    .catch((e) => { console.warn('[trees] city boundary unavailable:', e.message); applyLimits(); });
 
   // Trees: one GeoJSON source and a circle layer, placed above roads and
   // buildings but under the first label layer so street names stay readable.
@@ -378,8 +481,14 @@
     return map.getStyle().layers.find((lyr) => lyr.type === 'symbol')?.id;
   }
 
+  // Order above the basemap: city mask, city line, trees, selection ring,
+  // then the style's labels (moved to the top by themeStyle).
   function addTreeLayers() {
     const before = firstLabelLayer();
+    map.addSource('city-mask', { type: 'geojson', data: maskGeo || EMPTY });
+    map.addLayer({ id: 'city-mask', type: 'fill', source: 'city-mask', paint: maskPaint() }, before);
+    map.addSource('city-line', { type: 'geojson', data: cityGeo || EMPTY });
+    map.addLayer({ id: 'city-line', type: 'line', source: 'city-line', layout: { 'line-join': 'round' }, paint: linePaint() }, before);
     map.addSource('trees', { type: 'geojson', data: treeData });
     map.addLayer({ id: 'trees', type: 'circle', source: 'trees', layout: { 'circle-sort-key': ['-', 0, ['get', 'd']] }, paint: treePaint() }, before);
     map.addSource('tree-selected', { type: 'geojson', data: selData() });
@@ -415,6 +524,11 @@
 
   // Recolor dots (family colors, halo) for the current theme.
   function restyle() {
+    if (map.getLayer('city-mask')) {
+      const m = maskPaint(), l = linePaint();
+      for (const k of Object.keys(m)) map.setPaintProperty('city-mask', k, m[k]);
+      for (const k of Object.keys(l)) map.setPaintProperty('city-line', k, l[k]);
+    }
     if (!map.getLayer('trees')) return;
     const p = treePaint();
     map.setPaintProperty('trees', 'circle-color', p['circle-color']);
@@ -460,10 +574,16 @@
     renderPill();
   }
 
+  // The visible area clipped to the city's bounding box, or null if the view is
+  // entirely outside it (then no trees are requested).
   function envelope() {
     const b = map.getBounds();
+    const [[w, s], [e, n]] = cityBox;
+    const xmin = Math.max(b.getWest(), w), ymin = Math.max(b.getSouth(), s);
+    const xmax = Math.min(b.getEast(), e), ymax = Math.min(b.getNorth(), n);
+    if (xmin >= xmax || ymin >= ymax) return null;
     return {
-      geometry: JSON.stringify({ xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth(), spatialReference: { wkid: 4326 } }),
+      geometry: JSON.stringify({ xmin, ymin, xmax, ymax, spatialReference: { wkid: 4326 } }),
       geometryType: 'esriGeometryEnvelope',
       inSR: '4326',
       spatialRel: 'esriSpatialRelIntersects',
@@ -487,6 +607,7 @@
     }
     const where = buildWhere();
     const env = envelope();
+    if (!env) { drawTrees([]); setViewMsg(null); return; }
     const slow = setTimeout(() => setViewMsg('loading', 'Loading trees…'), 400);
     try {
       const { count } = await query({ where, ...env, returnCountOnly: 'true' }, signal);
@@ -527,8 +648,8 @@
 
   $('zin').onclick = () => map.zoomIn();
   $('zout').onclick = () => map.zoomOut();
-  $('zfit').onclick = () => map.jumpTo({ center: lngLat(CONFIG.home.center), zoom: CONFIG.home.zoom });
-  new ResizeObserver(() => map.resize()).observe($('main'));
+  $('zfit').onclick = () => fitCity(true);
+  new ResizeObserver(() => { map.resize(); applyLimits(); }).observe($('main'));
 
   // ---------------------------------------------------------------------------
   // Detail card
@@ -1017,13 +1138,9 @@
     renderList();
     renderFavorites();
 
-    // Open in a useful state: the largest recorded tree, selected.
-    if (largest?.geometry) {
-      map.jumpTo({ center: [largest.geometry.x, largest.geometry.y], zoom: CONFIG.detailZoom });
-      select(largest);
-    } else {
-      loadView();
-    }
+    // Open on the whole city, with the largest recorded tree's card open.
+    if (largest?.geometry) select(largest);
+    loadView();
   }
 
   applyBasemap();

@@ -29,7 +29,7 @@ Only in-service trees are shown (`CURRENT_STATUS = 'INSVC'`).
 - **Favorites**: tap **☆ Save** on a tree's card to add it to the Favorites list in the sidebar. Tap a favorite to jump to it, or × to remove it. Saved trees show as ★ on the map even when your filters hide them. **Show only these** limits the map to your favorites, and family, size and species filters still apply to them.
   - Favorites are saved in this browser's `localStorage` (key `favoriteTrees`), so they stay on this device and don't sync between devices.
   - Each favorite is keyed by the city's tree ID (`UNITID`) and stores a copy of the tree's details, so the list loads without any extra requests.
-- Opens on the largest recorded tree, already selected.
+- **Seattle only**: the map opens fitted to the whole city, with the largest recorded tree's card open. It can't zoom out past that view, and panning stops about 10% past the city's edge at every zoom (a MapLibre transform constraint in `constrainView()`). Everything outside the city sits under a mask in the ground color (75% opaque in light mode, 80% in dark) with the city cut out, so nearby water and towns stay faintly visible. A 1px line in the muted text color at 50% opacity traces the city edge. **Reset view** (⤢) returns to the whole-city fit. Tree requests are clipped to the city's bounding box, and none are made when the view is entirely outside it.
 - **Theme switch** (System, Light, Dark) at the bottom of the sidebar. System follows the device setting. The choice is saved in `localStorage`, applied as `data-theme` on `<html>` before the page draws, and switches both the basemap style and the dot colors.
 - On screens up to 760px wide: the TreeTime heading comes first, then the map at 58% of the screen height, then the filters.
 
@@ -42,6 +42,14 @@ Some records have trunk diameters that can't be real, such as 999. The app treat
 - The detail card shows "Not recorded".
 
 With no size filter set, they still appear on the map and in the counts.
+
+### City boundary
+
+`data/seattle-boundary.geojson` (about 22 KB) is loaded from the repo, not from the city at runtime. It is the City of Seattle's `jurisdiction` layer (feature `JURISDICTION = 'Seattle'`, [service](https://services.arcgis.com/ZOyb2t4B0UYuYNYH/ArcGIS/rest/services/jurisdiction/FeatureServer/3)): the city's land area along the shoreline, whose north and south edges follow the official Seattle City Limits lines. The portal's "Seattle City Limits" layer itself contains only those north and south lines, not a closed shape. The file was simplified with mapshaper:
+
+```bash
+mapshaper jurisdiction.geojson -clean -simplify 3% keep-shapes -filter-islands min-area=20000m2 -filter-fields -o precision=0.00001 format=geojson out.geojson
+```
 
 ## How it queries the data
 
@@ -102,6 +110,7 @@ app.js                   config, ArcGIS queries, filters, map, basemap styling
 favicon.svg              site icon (switches to the light green in dark mode)
 favicon-32.png           PNG icon for browsers without SVG icons
 apple-touch-icon.png     180×180 home-screen icon
+data/seattle-boundary.geojson  simplified Seattle boundary (see "City boundary")
 DESIGN.md                design brief
 reference/prototype.html working design prototype (sample data, no basemap)
 .nojekyll                serve the files as-is on GitHub Pages
