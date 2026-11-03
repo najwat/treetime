@@ -666,6 +666,7 @@
     if (typeof planted === 'number') rows.push(['Planted', new Date(planted).toLocaleDateString(undefined, { timeZone: 'UTC' })]);
     rows.push(['Location', `${lat.toFixed(5)}, ${lng.toFixed(5)}`]);
 
+    if (editingName) { cancelName = true; editingName = false; nameInput.hidden = true; $('cname').hidden = false; }
     $('cname').textContent = attr(a, state.f.common) || 'Unknown species';
     $('cgen').textContent = sci || 'Scientific name not recorded';
     $('cdl').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
@@ -684,7 +685,10 @@
   // as stars on the map regardless of filters.
   // ---------------------------------------------------------------------------
   const FAV_KEY = 'favoriteTrees';
-  let favorites = [];  // [{key, a, g:{x,y}, savedAt}], newest first
+  // [{key: 'id:<UNITID>', a: attributes, g: {x, y}, savedAt, since, name, gone}], newest first.
+  // `since` = when the tree was first saved; `name` = nickname ('' if none);
+  // `gone` = no longer in the city's in-service inventory (checked on load).
+  let favorites = [];
   try { favorites = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch (e) { favorites = []; }
   if (!Array.isArray(favorites)) favorites = [];
   // Recover trees saved by the short-lived "crushes" version, which moved
@@ -701,13 +705,34 @@
       if (moved.length) localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
     }
   } catch (e) { /* storage unavailable */ }
+  // Normalize: key every record by the city's tree ID (UNITID), never OBJECTID,
+  // and fill in `since` / `name`. Duplicates keep the earliest date and any name.
+  (function migrateFavorites() {
+    const byKey = new Map();
+    for (const f of favorites) {
+      if (!f || !f.a || !f.g) continue;
+      const uid = attr(f.a, 'UNITID');
+      const key = uid ? `id:${uid}` : f.key;
+      const rec = { ...f, key, since: f.since ?? f.savedAt ?? Date.now(), savedAt: f.savedAt ?? f.since ?? Date.now(), name: typeof f.name === 'string' ? f.name : '' };
+      const prev = byKey.get(key);
+      if (!prev) byKey.set(key, rec);
+      else byKey.set(key, { ...prev, since: Math.min(prev.since, rec.since), name: prev.name || rec.name });
+    }
+    const before = JSON.stringify(favorites);
+    favorites = [...byKey.values()].sort((x, y) => y.savedAt - x.savedAt);
+    if (JSON.stringify(favorites) !== before) { try { localStorage.setItem(FAV_KEY, JSON.stringify(favorites)); } catch (e) { /* ignore */ } }
+  })();
   let favMarkers = [];
 
   function treeKey(a) {
-    const id = attr(a, state.f.unitId);
+    const id = attr(a, state.f.unitId || 'UNITID');
     return id ? `id:${id}` : `oid:${attr(a, state.oid)}`;
   }
-  const isFav = (ft) => !!ft && favorites.some((f) => f.key === treeKey(ft.attributes));
+  const recordFor = (ft) => (ft ? favorites.find((f) => f.key === treeKey(ft.attributes)) : null);
+  const isFav = (ft) => !!recordFor(ft);
+  const nickname = (f) => (f && f.name) || '';
+  const speciesOf = (a) => attr(a, state.f.common) || 'Unknown species';
+  const monthYear = (t) => new Date(t).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
   function saveFavorites() {
     try { localStorage.setItem(FAV_KEY, JSON.stringify(favorites)); } catch (e) { /* storage unavailable: kept for this visit */ }
@@ -716,9 +741,16 @@
   function toggleFavorite(ft) {
     const key = treeKey(ft.attributes);
     if (favorites.some((f) => f.key === key)) favorites = favorites.filter((f) => f.key !== key);
-    else favorites.unshift({ key, a: ft.attributes, g: { x: ft.geometry.x, y: ft.geometry.y }, savedAt: Date.now() });
+    else addFavorite(ft);
     saveFavorites();
     favoritesChanged();
+  }
+
+  function addFavorite(ft, name = '') {
+    const now = Date.now();
+    const rec = { key: treeKey(ft.attributes), a: ft.attributes, g: { x: ft.geometry.x, y: ft.geometry.y }, savedAt: now, since: now, name };
+    favorites.unshift(rec);
+    return rec;
   }
 
   function favoritesChanged() {
@@ -771,11 +803,16 @@
       const row = document.createElement('div');
       row.className = 'fav';
       row.style.setProperty('--c', `var(--f-${FAMS[fam].id})`);
-      const sub = [attr(a, state.f.address), d ? `${fmtIn(d)}″` : null].filter(Boolean).join(' · ');
-      row.innerHTML = `<button type="button" class="fav-open"><i></i><span><b></b><small></small></span></button>
+      const name = nickname(f);
+      const size = d ? `${fmtIn(d)}″` : null;
+      const sub = (name ? [speciesOf(a), size, attr(a, state.f.address)] : [attr(a, state.f.address), size]).filter(Boolean).join(' · ');
+      row.classList.toggle('is-gone', !!f.gone);
+      row.innerHTML = `<button type="button" class="fav-open"><i></i><span><b></b><small></small><em class="gone-note" hidden>No longer in the city’s inventory</em></span></button>
         <button type="button" class="fav-x" aria-label="Remove from saved">×</button>`;
-      row.querySelector('b').textContent = attr(a, state.f.common) || 'Unknown species';
+      row.querySelector('b').textContent = name || speciesOf(a);
       row.querySelector('small').textContent = sub;
+      row.querySelector('.gone-note').hidden = !f.gone;
+      row.querySelector('.fav-x').setAttribute('aria-label', `Remove ${name || speciesOf(a)} from saved`);
       row.querySelector('.fav-open').onclick = () => openFavorite(f);
       row.querySelector('.fav-x').onclick = () => {
         favorites = favorites.filter((x) => x.key !== f.key);
@@ -792,24 +829,125 @@
       el.type = 'button';
       el.className = 'fav-pin';
       el.textContent = '★';
-      el.title = attr(f.a, state.f.common) || 'Saved tree';
+      el.title = nickname(f) || speciesOf(f.a);
       el.setAttribute('aria-label', `Saved tree: ${el.title}`);
       el.addEventListener('click', (e) => { e.stopPropagation(); select(favFeature(f)); });
       return new maplibregl.Marker({ element: el }).setLngLat([f.g.x, f.g.y]).addTo(map);
     });
 
-    // Card button
+    // Nickname labels under the dot (shown from zoom 17 via CSS on the map container)
+    nameMarkers.forEach((m) => m.remove());
+    nameMarkers = favorites.filter((f) => nickname(f)).map((f) => {
+      const el = document.createElement('div');
+      el.className = 'tree-label';
+      el.textContent = f.name;
+      return new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, 9] }).setLngLat([f.g.x, f.g.y]).addTo(map);
+    });
+    updateLabelZoom();
+
+    // Card button, heading, "Saved since"
     updateSaveButton();
   }
 
+  let nameMarkers = [];
+  const LABEL_MIN_ZOOM = 17;
+  function updateLabelZoom() { map.getContainer().classList.toggle('labels-on', map.getZoom() >= LABEL_MIN_ZOOM); }
+  map.on('zoom', updateLabelZoom);
+
   function updateSaveButton() {
     const b = $('cfav');
-    const on = isFav(state.sel);
+    const rec = recordFor(state.sel);
+    const on = !!rec;
     b.setAttribute('aria-pressed', String(on));
     b.textContent = on ? '★ Saved' : '☆ Save';
     b.title = on ? 'Remove from saved trees' : 'Save this tree';
+    if (!state.sel) return;
+    const a = state.sel.attributes;
+    const d = diamOf(a);
+    const name = nickname(rec);
+    if (!editingName) $('cname').textContent = name || speciesOf(a);
+    $('cspecies').textContent = [speciesOf(a), d ? `${fmtIn(d)}″` : null].filter(Boolean).join(' · ');
+    $('cspecies').hidden = !name;
+    $('csince').textContent = on ? `Saved since ${monthYear(rec.since)}` : '';
+    $('csince').hidden = !on;
+    $('cgone').hidden = !rec?.gone;
+    const pen = $('cnamebtn');
+    pen.title = name ? 'Rename this tree' : 'Name this tree';
+    pen.setAttribute('aria-label', pen.title);
   }
   $('cfav').onclick = () => { if (state.sel) toggleFavorite(state.sel); };
+
+  // Nicknames: inline field in place of the heading. Enter or blur saves,
+  // Escape cancels. Naming also saves the tree; clearing the name keeps it saved.
+  const NAME_MAX = 30; // characters (code points, so an emoji counts as one)
+  let editingName = false, cancelName = false;
+  const nameInput = $('cnameinput');
+  function startNaming() {
+    if (!state.sel) return;
+    editingName = true;
+    cancelName = false;
+    nameInput.value = nickname(recordFor(state.sel));
+    $('cname').hidden = true;
+    nameInput.hidden = false;
+    nameInput.focus();
+    nameInput.select();
+  }
+  function endNaming(save) {
+    if (!editingName) return;
+    editingName = false;
+    nameInput.hidden = true;
+    $('cname').hidden = false;
+    if (save && state.sel) {
+      const v = Array.from(nameInput.value.trim()).slice(0, NAME_MAX).join('');
+      let rec = recordFor(state.sel);
+      if (v || rec) {
+        if (!rec) rec = addFavorite(state.sel);
+        rec.name = v;
+        saveFavorites();
+        favoritesChanged();
+        return;
+      }
+    }
+    updateSaveButton();
+  }
+  $('cnamebtn').onclick = startNaming;
+  nameInput.addEventListener('input', () => {
+    const chars = Array.from(nameInput.value);
+    if (chars.length > NAME_MAX) nameInput.value = chars.slice(0, NAME_MAX).join('');
+  });
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); endNaming(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelName = true; endNaming(false); }
+  });
+  nameInput.addEventListener('blur', () => { if (!cancelName) endNaming(true); });
+
+  // On load, mark saved trees that are no longer in the city's in-service
+  // inventory. They keep their last known details and can still be removed.
+  async function checkInventory() {
+    const U = state.f.unitId;
+    if (!U) return;
+    const ids = favorites.map((f) => attr(f.a, U)).filter(Boolean);
+    if (!ids.length) return;
+    const present = new Set();
+    try {
+      for (let k = 0; k < ids.length; k += 100) {
+        const chunk = ids.slice(k, k + 100);
+        const r = await query({
+          where: `${CONFIG.statusField} = ${sql(CONFIG.statusValue)} AND ${U} IN (${chunk.map(sql).join(',')})`,
+          outFields: U, returnGeometry: 'false', resultRecordCount: String(chunk.length),
+        });
+        for (const ft of r.features || []) present.add(attr(ft.attributes, U));
+      }
+    } catch (e) { return; } // can't tell right now: leave records as they are
+    let dirty = false;
+    for (const f of favorites) {
+      const id = attr(f.a, U);
+      if (!id) continue;
+      const gone = !present.has(id);
+      if (!!f.gone !== gone) { f.gone = gone; dirty = true; }
+    }
+    if (dirty) { saveFavorites(); renderFavorites(); }
+  }
 
   // ---------------------------------------------------------------------------
   // Sidebar: count, family chips, size presets, slider, species list
@@ -1324,10 +1462,11 @@
       loadSpecies();
     }
     if (S) buildChips(famCounts);
-    else famsEl.closest('section').hidden = true;
+    else famsEl.closest('.field').hidden = true;
     renderControls();
     renderPill();
     renderFavorites();
+    checkInventory();
 
     // Open on the whole city. On wider screens, also open the largest recorded
     // tree's card; on phones it would cover half the city, so it stays closed.

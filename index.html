@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css"
         integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css?v=20261103c">
+  <link rel="stylesheet" href="style.css?v=20261103d">
 </head>
 <body>
 <div class="app">
@@ -107,11 +107,19 @@
     <div class="card" id="card" hidden>
       <button class="x" id="cardx" type="button" aria-label="Close">×</button>
       <h2 id="cname"></h2>
+      <input class="nameinput" id="cnameinput" type="text" hidden autocomplete="off" spellcheck="false"
+             placeholder="Name this tree" aria-label="Nickname for this tree (up to 30 characters)">
+      <div class="species" id="cspecies" hidden></div>
       <div class="gen" id="cgen"></div>
+      <p class="gone" id="cgone" hidden>No longer in the city’s inventory</p>
       <dl id="cdl"></dl>
+      <p class="since" id="csince" hidden></p>
       <div class="card-actions">
         <a id="clink" href="#" target="_blank" rel="noopener" aria-label="Open in Google Maps">Google Maps ↗</a>
-        <button class="save" id="cfav" type="button" aria-pressed="false">☆ Save</button>
+        <span class="card-btns">
+          <button class="pencil" id="cnamebtn" type="button" aria-label="Name this tree" title="Name this tree"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.2 2.2a1.6 1.6 0 0 1 2.3 0l.3.3a1.6 1.6 0 0 1 0 2.3l-8 8-3.3.8.8-3.3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3.5l2.5 2.5" stroke="currentColor" stroke-width="1.5"/></svg></button>
+          <button class="save" id="cfav" type="button" aria-pressed="false">☆ Save</button>
+        </span>
       </div>
     </div>
   </main>
@@ -119,6 +127,6 @@
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"
         integrity="sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" crossorigin="anonymous"></script>
-<script src="app.js?v=20261103g"></script>
+<script src="app.js?v=20261103h"></script>
 </body>
 </html>

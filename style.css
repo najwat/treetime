@@ -190,3 +190,24 @@ main{position:relative;background:var(--map);min-width:0;overflow:hidden}
   .pill{top:calc(12px + env(safe-area-inset-top,0px));max-width:calc(100% - 116px)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- nicknames ---------- */
+.card .species{color:var(--muted);font-size:14px;margin:1px 0 2px;font-variant-numeric:tabular-nums}
+.card .nameinput{display:block;width:calc(100% - 26px);font:700 19px var(--display);color:var(--ink);background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:2px 6px;margin:-3px 0 2px -7px}
+.card .nameinput[hidden]{display:none}
+.card .gone{margin:8px 0 0;padding:4px 8px;border-radius:6px;background:var(--chip);color:var(--ink);font-size:13px}
+.card .gone[hidden]{display:none}
+.card .since{margin:-2px 0 10px;color:var(--muted);font-size:13px}
+.card .since[hidden]{display:none}
+.card-btns{display:inline-flex;align-items:center;gap:6px}
+.card .pencil{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink);width:30px;height:30px;border-radius:999px;display:grid;place-items:center;cursor:pointer}
+.card .pencil:hover{background:var(--chip)}
+.fav .gone-note{font-style:normal;font-size:12.5px;color:var(--muted);font-weight:var(--w-small)}
+.fav .gone-note[hidden]{display:none}
+.fav.is-gone b{color:var(--muted)}
+.fav.is-gone i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--c)}
+/* Nickname labels on the map: body font, halo in the map's ground color, only from z17 */
+.tree-label{font:500 12px var(--body);color:var(--ink);white-space:nowrap;pointer-events:none;
+  text-shadow:0 0 2px var(--map),0 0 2px var(--map),1px 0 1px var(--map),-1px 0 1px var(--map),0 1px 1px var(--map),0 -1px 1px var(--map);
+  display:none}
+.labels-on .tree-label{display:block}
