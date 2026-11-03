@@ -20,13 +20,17 @@ Only in-service trees are shown (`CURRENT_STATUS = 'INSVC'`).
 - **Trunk diameter**: Young (<6″), Medium (6–17″), Mature (18–35″), Large (36–49″) and Giant (50″+) presets, plus a two-thumb slider from 0 to 72+ inches. Clicking an active preset clears it.
 - **Species**: a search box and a ranked list of the top 12 species for the current filters, each with a count and a bar in its family color. Click a species to filter to it, and click it again to clear it.
 - **Filter pill**: when any filter is on (family, size, species or favorites only), a pill at the top of the map sums up the result in plain words, such as "319 maples · 18–35″ · Clear filters" or "3 favorites · Clear". **Clear filters** resets everything. The pill is hidden when no filters are on. When the map needs you to zoom in, that message takes the pill's place instead.
-- **Map**: Leaflet on a muted CARTO basemap (Positron in light mode, Dark Matter in dark mode). Dots are colored by family and sized by trunk diameter (about 2–8px, smaller when zoomed out), and the largest trees are drawn first. Trees load for the visible area as you pan and zoom. If more than 3,000 trees match in view, the map says "Zoom in to see individual trees" instead of drawing a partial set.
+- **Map**: [MapLibre GL JS](https://maplibre.org) with [OpenFreeMap](https://openfreemap.org) vector tiles. The app loads OpenFreeMap's Positron style (light) or Dark style (dark) and recolors it in `themeStyle()` (`app.js`) so the basemap recedes behind the trees. The palettes are in `BASEMAPS`:
+  - Dark: ground `#0f1411`, minor roads `#1a221d`, major roads `#243029` with no casings, buildings `#141a16`, parks `#122019`, water `#0d1517`, labels `#7d8a81` with a ground-colored halo, street names from zoom 15.
+  - Light: ground `#f4f6f1`, white roads with `#e2e7de` casings, buildings `#ebefe8`, parks `#e5eee1`, water `#dce7ea`, labels `#8a958d` with a white halo.
+  - Both: buildings only from zoom 16, road shields hidden, other landuse hidden.
+  - Trees are a MapLibre circle layer above roads and buildings but below the first label layer, so street names stay readable. Dots are colored by family and sized by trunk diameter (about 2–8px, smaller when zoomed out), with a 1px halo in the ground color, and the largest trees are drawn first. Trees load for the visible area as you pan and zoom. If more than 3,000 trees match in view, the map says "Zoom in to see individual trees" instead of drawing a partial set.
 - **Tree details**: hover a dot for its name and diameter; click it for a card with the name, scientific name, trunk diameter in inches and cm, family, address, planting date, coordinates and a Google Maps link.
 - **Favorites**: tap **☆ Save** on a tree's card to add it to the Favorites list in the sidebar. Tap a favorite to jump to it, or × to remove it. Saved trees show as ★ on the map even when your filters hide them. **Show only these** limits the map to your favorites, and family, size and species filters still apply to them.
   - Favorites are saved in this browser's `localStorage` (key `favoriteTrees`), so they stay on this device and don't sync between devices.
   - Each favorite is keyed by the city's tree ID (`UNITID`) and stores a copy of the tree's details, so the list loads without any extra requests.
 - Opens on the largest recorded tree, already selected.
-- **Theme switch** (System, Light, Dark) at the bottom of the sidebar. System follows the device setting. The choice is saved in `localStorage`, applied as `data-theme` on `<html>` before the page draws, and switches the basemap between Positron and Dark Matter.
+- **Theme switch** (System, Light, Dark) at the bottom of the sidebar. System follows the device setting. The choice is saved in `localStorage`, applied as `data-theme` on `<html>` before the page draws, and switches both the basemap style and the dot colors.
 - On screens up to 760px wide: the TreeTime heading comes first, then the map at 58% of the screen height, then the filters.
 
 ### Diameters over 80 inches
@@ -92,9 +96,9 @@ The `.nojekyll` file tells Pages to serve the files as they are, without running
 ## Files
 
 ```
-index.html               page markup; loads Leaflet 1.9.4 from unpkg and fonts from Google Fonts
+index.html               page markup; loads MapLibre GL JS 5.24.0 from unpkg and fonts from Google Fonts
 style.css                design tokens (light and dark), layout, components
-app.js                   config, ArcGIS queries, filters, map
+app.js                   config, ArcGIS queries, filters, map, basemap styling
 DESIGN.md                design brief
 reference/prototype.html working design prototype (sample data, no basemap)
 .nojekyll                serve the files as-is on GitHub Pages
@@ -103,5 +107,5 @@ reference/prototype.html working design prototype (sample data, no basemap)
 ## Credits
 
 - Tree data: City of Seattle, Seattle Department of Transportation (SDOT).
-- Basemap: © OpenStreetMap contributors, © CARTO. Tiles are requested with the CARTO basemaps API key in `CONFIG.cartoKey` (`app.js`). The key is visible to every visitor, so restrict it to your site's domain in the CARTO dashboard.
+- Basemap: © OpenStreetMap contributors · OpenFreeMap. OpenFreeMap is free and needs no API key. Map rendering by MapLibre GL JS.
 - Fonts: Bricolage Grotesque, IBM Plex Sans and IBM Plex Mono, from Google Fonts.

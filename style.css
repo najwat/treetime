@@ -72,7 +72,7 @@ section{margin:0}
 .fav-open small{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .fav-x{appearance:none;border:0;background:none;color:var(--muted);font-size:18px;width:32px;height:32px;cursor:pointer;border-radius:6px}
 .fav-x:hover{color:var(--ink)}
-.fav-pin{color:var(--ink);font-size:16px;line-height:18px;text-align:center;text-shadow:0 0 2px var(--panel),0 0 2px var(--panel),0 0 3px var(--panel);cursor:pointer}
+.fav-pin{appearance:none;border:0;background:none;padding:0;width:18px;height:18px;color:var(--ink);font-size:16px;line-height:18px;text-align:center;text-shadow:0 0 2px var(--panel),0 0 2px var(--panel),0 0 3px var(--panel);cursor:pointer}
 .card-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .card .save{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:4px 10px;font:500 13px var(--body);cursor:pointer;white-space:nowrap}
 .card .save[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -91,8 +91,8 @@ footer a{color:inherit}
 /* ---------- map ---------- */
 main{position:relative;background:var(--map);min-width:0;overflow:hidden}
 #map{position:absolute;inset:0;background:var(--map);font-family:var(--body)}
-.leaflet-container{background:var(--map)}
-.leaflet-interactive{cursor:pointer}
+.maplibregl-map{font-family:var(--body)}
+.maplibregl-canvas:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .tools{position:absolute;z-index:1000;top:calc(14px + env(safe-area-inset-top,0px));right:max(14px, env(safe-area-inset-right,0px));display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
 .tools button{appearance:none;border:0;background:none;color:var(--ink);width:34px;height:34px;font:500 18px var(--body);cursor:pointer}
 .tools button.fit{font-size:13px}
@@ -118,12 +118,12 @@ main{position:relative;background:var(--map);min-width:0;overflow:hidden}
 .card .x{position:absolute;top:8px;right:8px;appearance:none;border:0;background:none;color:var(--muted);font-size:18px;cursor:pointer;width:28px;height:28px}
 
 /* Leaflet controls restyled to match the tokens */
-.leaflet-control-scale{margin-left:16px!important;margin-bottom:14px!important}
-.leaflet-control-scale-line{background:transparent;border:1.5px solid var(--muted);border-top:0;color:var(--muted);font:var(--w-small) 12px var(--body);font-variant-numeric:tabular-nums;line-height:1.3;padding:0 4px 1px;text-shadow:none}
-.leaflet-control-attribution.leaflet-control{background:color-mix(in srgb, var(--panel) 80%, transparent);color:var(--muted);font:var(--w-small) 12px var(--body)}
-.leaflet-control-attribution a{color:var(--muted)}
-.leaflet-tooltip.tip{background:var(--ink);color:var(--bg);border:0;border-radius:6px;padding:5px 8px;font:500 13px var(--body);box-shadow:none;white-space:nowrap}
-.leaflet-tooltip.tip::before{display:none}
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-scale{margin:0 0 14px 16px}
+.maplibregl-ctrl-scale{background:transparent;border:1.5px solid var(--muted);border-top:0;color:var(--muted);font:var(--w-small) 12px var(--body);font-variant-numeric:tabular-nums;line-height:1.3;padding:0 4px 1px}
+.maplibregl-ctrl.maplibregl-ctrl-attrib{background:color-mix(in srgb, var(--panel) 80%, transparent);color:var(--muted);font:var(--w-small) 12px var(--body);padding:1px 6px}
+.maplibregl-ctrl-attrib a{color:var(--muted)}
+.tip{position:absolute;z-index:1000;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 8px;font:500 13px var(--body);white-space:nowrap;transform:translate(-50%,-100%)}
+.tip[hidden]{display:none}
 
 @media (max-width:760px){
   .app{grid-template-columns:1fr;grid-template-rows:auto 58vh auto;height:auto}

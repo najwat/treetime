@@ -24,7 +24,7 @@
 - Filtered-out trees stay visible as tiny faint dots, so the street grid and context never disappear.
 - Controls: drag to pan, scroll or pinch to zoom, and +/−/reset buttons at top right. North arrow at top left. A metric scale bar at bottom left that updates with zoom.
 - Hovering a dot shows a tooltip with the name and diameter. Clicking a dot opens a detail card at bottom right with the name, genus, diameter in inches and cm, family, coordinates, and an "Open in Google Maps" link.
-- The real app should add street map tiles (Leaflet + OpenStreetMap or a muted basemap such as CARTO Positron/Dark Matter) that match the theme. Keep the dot styling.
+- Basemap: MapLibre GL JS with OpenFreeMap vector tiles (Positron for light, Dark for dark), recolored to the tokens so it recedes behind the trees. Trees are a circle layer above roads and buildings and below street labels, with a 1px ground-colored halo.
 
 ## Interaction details
 - Family chips toggle on and off. Clicking a chip while all are on isolates that family. "Show all" resets.

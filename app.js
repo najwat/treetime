@@ -25,12 +25,9 @@
     sliderMax: 72,      // top slider stop means "72 and larger"
     areaLimit: 3000,    // above this many matches in view, ask the user to zoom in
     listTop: 12,        // species shown before "Show all"
-    home: { center: [47.6145, -122.3360], zoom: 12 },
-    detailZoom: 17,
+    home: { center: [47.6145, -122.3360], zoom: 11 }, // MapLibre zoom (512px tiles)
+    detailZoom: 16,
 
-    // CARTO basemaps key. It ships to every visitor's browser, so restrict it
-    // to this site's domain in the CARTO dashboard.
-    cartoKey: 'cb1_4zwi_1_5f45bb3f199208a216762f99',
   };
 
   // Tree families, grouped by genus (the first word of the scientific name).
@@ -209,70 +206,243 @@
   readColors();
 
   // ---------------------------------------------------------------------------
+  // Basemap: OpenFreeMap vector tiles drawn by MapLibre GL. Each theme starts
+  // from an OpenFreeMap style and is recolored so the basemap recedes and the
+  // trees stand out. Colors follow DESIGN.md.
+  // ---------------------------------------------------------------------------
+  const BASEMAPS = {
+    light: {
+      style: 'https://tiles.openfreemap.org/styles/positron',
+      ground: '#f4f6f1', minor: '#ffffff', major: '#ffffff', casing: '#e2e7de', rail: '#e2e7de',
+      building: '#ebefe8', park: '#e5eee1', water: '#dce7ea', boundary: '#d3dacf',
+      label: '#8a958d', halo: '#ffffff', roadLabelMinZoom: null,
+    },
+    dark: {
+      style: 'https://tiles.openfreemap.org/styles/dark',
+      ground: '#0f1411', minor: '#1a221d', major: '#243029', casing: null, rail: '#1a221d',
+      building: '#141a16', park: '#122019', water: '#0d1517', boundary: '#243029',
+      label: '#7d8a81', halo: '#0f1411', roadLabelMinZoom: 15,
+    },
+  };
+  const BUILDING_MIN_ZOOM = 16;
+  const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>';
+  const themeName = () => (isDark() ? 'dark' : 'light');
+
+  // Add `extra` px to a line-width value: a number, or a zoom interpolate/step.
+  function widen(w, extra) {
+    if (typeof w === 'number') return w + extra;
+    if (Array.isArray(w) && (w[0] === 'interpolate' || w[0] === 'step')) {
+      const out = w.slice();
+      const first = w[0] === 'interpolate' ? 4 : 3; // index of the first output value
+      for (let k = first; k < out.length; k += 2) if (typeof out[k] === 'number') out[k] += extra;
+      if (w[0] === 'step' && typeof out[2] === 'number') out[2] += extra;
+      return out;
+    }
+    return w;
+  }
+
+  // Recolor an OpenFreeMap style (OpenMapTiles schema) with a palette.
+  // Layers are matched by source-layer and type, so this also works if
+  // OpenFreeMap renames or adds layers.
+  function themeStyle(src, p) {
+    const style = JSON.parse(JSON.stringify(src));
+    for (const k of Object.keys(style.sources || {})) style.sources[k].attribution = '';
+    const out = [];
+    for (const lyr of style.layers) {
+      const sl = lyr['source-layer'] || '';
+      const id = lyr.id;
+      lyr.paint = lyr.paint || {};
+      lyr.layout = lyr.layout || {};
+      const hide = () => { lyr.layout.visibility = 'none'; };
+      const fill = (c) => { lyr.paint = { 'fill-color': c, 'fill-opacity': 1, 'fill-antialias': true }; };
+      if (lyr.type === 'background') lyr.paint = { 'background-color': p.ground };
+      else if (lyr.type === 'raster' || lyr.type === 'hillshade' || lyr.type === 'fill-extrusion' || lyr.type === 'heatmap') hide();
+      else if (lyr.type === 'symbol') {
+        if (/shield/.test(id) || lyr.layout['icon-image'] && !lyr.layout['text-field']) { hide(); }
+        else {
+          lyr.paint = { 'text-color': p.label, 'text-halo-color': p.halo, 'text-halo-width': 1.2, 'text-halo-blur': 0, 'icon-opacity': 0.5 };
+          if (sl === 'transportation_name' && p.roadLabelMinZoom) lyr.minzoom = Math.max(lyr.minzoom || 0, p.roadLabelMinZoom);
+        }
+      } else if (sl === 'water') { if (lyr.type === 'fill') fill(p.water); else lyr.paint = { 'line-color': p.water, 'line-width': lyr.paint['line-width'] ?? 1 }; }
+      else if (sl === 'waterway') { if (lyr.type === 'line') lyr.paint = { 'line-color': p.water, 'line-width': lyr.paint['line-width'] ?? 1 }; else hide(); }
+      else if (sl === 'park' || (sl === 'landcover' && /wood|grass|park|forest|scrub/.test(id))) { if (lyr.type === 'fill') fill(p.park); else hide(); }
+      else if (sl === 'landuse' || sl === 'landcover') hide();
+      else if (sl === 'building') { if (lyr.type === 'fill') { fill(p.building); lyr.minzoom = Math.max(lyr.minzoom || 0, BUILDING_MIN_ZOOM); } else hide(); }
+      else if (sl === 'boundary') { lyr.paint['line-color'] = p.boundary; lyr.paint['line-opacity'] = 1; }
+      else if (sl === 'transportation' || sl === 'aeroway') {
+        if (lyr.type === 'fill') fill(p.minor);
+        else if (lyr.type === 'line') {
+          const major = /motorway|major|trunk|primary|secondary|tertiary|runway/.test(id);
+          let color = major ? p.major : p.minor;
+          if (/casing/.test(id)) { if (!p.casing) { hide(); out.push(lyr); continue; } color = p.casing; }
+          else if (/rail/.test(id)) color = p.rail;
+          lyr.paint['line-color'] = color;
+          lyr.paint['line-opacity'] = 1;
+          delete lyr.paint['line-pattern'];
+        } else hide();
+      } else if (lyr.type === 'fill') hide();
+      else if (lyr.type === 'line') { lyr.paint['line-color'] = p.minor; }
+      out.push(lyr);
+    }
+    // Light theme: minor streets get the same thin casing as major ones.
+    if (p.casing) {
+      const k = out.findIndex((lyr) => lyr.id === 'highway_minor');
+      if (k >= 0) {
+        const c = JSON.parse(JSON.stringify(out[k]));
+        c.id = 'highway_minor_casing';
+        c.paint = { 'line-color': p.casing, 'line-width': widen(out[k].paint['line-width'] ?? 1, 1.5), 'line-opacity': 1 };
+        out.splice(k, 0, c);
+      }
+    }
+    style.layers = out;
+    return style;
+  }
+
+  const blankStyle = (p) => ({ version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': p.ground } }] });
+
+  const styleCache = {};
+  function basemapStyle(name) {
+    const p = BASEMAPS[name];
+    styleCache[name] ??= fetch(p.style)
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((json) => themeStyle(json, p))
+      .catch((e) => { console.warn('[trees] basemap unavailable, showing trees only:', e.message); delete styleCache[name]; return blankStyle(p); });
+    return styleCache[name];
+  }
+
+  // ---------------------------------------------------------------------------
   // Map
   // ---------------------------------------------------------------------------
-  const map = L.map('map', { zoomControl: false, preferCanvas: true, attributionControl: false })
-    .setView(CONFIG.home.center, CONFIG.home.zoom);
-  L.control.attribution({ position: 'bottomright', prefix: '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>' }).addTo(map);
-  L.control.scale({ position: 'bottomleft', imperial: false, maxWidth: 110 }).addTo(map);
-
-  const tileUrl = () => `https://{s}.basemaps.cartocdn.com/${isDark() ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CONFIG.cartoKey)}`;
-  const tiles = L.tileLayer(tileUrl(), {
-    subdomains: 'abcd',
+  const lngLat = ([lat, lng]) => [lng, lat];
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: blankStyle(BASEMAPS[themeName()]),
+    center: lngLat(CONFIG.home.center),
+    zoom: CONFIG.home.zoom,
     maxZoom: 20,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-  }).addTo(map);
+    attributionControl: false,
+    dragRotate: false,
+    pitchWithRotate: false,
+    touchPitch: false,
+  });
+  map.touchZoomRotate.disableRotation();
+  map.keyboard.disableRotation();
+  map.addControl(new maplibregl.AttributionControl({ compact: false, customAttribution: ATTRIBUTION }), 'bottom-right');
+  map.addControl(new maplibregl.ScaleControl({ maxWidth: 110, unit: 'metric' }), 'bottom-left');
 
-  const renderer = L.canvas({ padding: 0.2 });
-  const treeLayer = L.layerGroup().addTo(map);
-  let markers = [];
-  let ring = null;
+  let shownTheme = null;
+  async function applyBasemap() {
+    const name = themeName();
+    const style = await basemapStyle(name);
+    if (name !== themeName() || name === shownTheme) return;
+    shownTheme = name;
+    map.setStyle(style, { diff: false });
+  }
+
+  // Trees: one GeoJSON source and a circle layer, placed above roads and
+  // buildings but under the first label layer so street names stay readable.
+  let treeFeats = [];            // features currently drawn, indexed by `i`
+  let treeData = { type: 'FeatureCollection', features: [] };
   const canHover = window.matchMedia('(hover: hover)').matches;
 
-  // Dot radius: ~2–8px by trunk diameter at street level, shrinking when zoomed out.
-  function radiusFor(d) {
-    const base = d ? Math.min(8, Math.max(2, 1.2 + Math.sqrt(d) * 0.75)) : 2;
-    const k = Math.max(0.45, Math.min(1, 1 - (17 - map.getZoom()) * 0.15));
-    return Math.max(1.2, base * k);
+  // Base dot radius ~2–8px by trunk diameter; the layer scales it down when zoomed out.
+  const baseRadius = (d) => (d ? Math.min(8, Math.max(2, 1.2 + Math.sqrt(d) * 0.75)) : 2);
+  // Zoom must be the outermost expression, so any offset goes inside each stop.
+  const zoomRadius = (r, add = 0) => ['interpolate', ['linear'], ['zoom'],
+    12, ['+', ['*', r, 0.45], add], 13, ['+', ['*', r, 0.55], add], 16, ['+', r, add]];
+
+  function treePaint() {
+    const ground = BASEMAPS[themeName()].ground;
+    const color = ['match', ['get', 'fam']];
+    famColors.forEach((c, k) => color.push(k, c));
+    color.push(famColors[OTHER]);
+    return {
+      'circle-radius': zoomRadius(['get', 'r']),
+      'circle-color': color,
+      'circle-opacity': 0.85,
+      'circle-stroke-width': 1,
+      'circle-stroke-color': ground,
+      'circle-stroke-opacity': 1,
+    };
   }
+
+  function firstLabelLayer() {
+    return map.getStyle().layers.find((lyr) => lyr.type === 'symbol')?.id;
+  }
+
+  function addTreeLayers() {
+    const before = firstLabelLayer();
+    map.addSource('trees', { type: 'geojson', data: treeData });
+    map.addLayer({ id: 'trees', type: 'circle', source: 'trees', layout: { 'circle-sort-key': ['-', 0, ['get', 'd']] }, paint: treePaint() }, before);
+    map.addSource('tree-selected', { type: 'geojson', data: selData() });
+    map.addLayer({
+      id: 'tree-selected', type: 'circle', source: 'tree-selected',
+      paint: { 'circle-radius': zoomRadius(['get', 'r'], 4), 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-width': 2, 'circle-stroke-color': ink },
+    }, before);
+  }
+  map.on('style.load', addTreeLayers);
 
   function drawTrees(feats) {
-    treeLayer.clearLayers();
-    markers = [];
-    // Largest first, so smaller trees sit on top and stay clickable.
-    const sorted = feats
-      .filter((ft) => ft.geometry && ft.geometry.x != null)
-      .map((ft) => ({ ft, d: diamOf(ft.attributes) }))
-      .sort((a, b) => (b.d ?? 0) - (a.d ?? 0));
-    for (const { ft, d } of sorted) {
-      const a = ft.attributes;
-      const fam = famOfSci(attr(a, state.f.scientific));
-      const m = L.circleMarker([ft.geometry.y, ft.geometry.x], {
-        renderer,
-        radius: radiusFor(d),
-        stroke: false,
-        fillColor: famColors[fam],
-        fillOpacity: 0.6,
-        bubblingMouseEvents: false,
-      });
-      m.tree = { ft, d, fam };
-      m.on('click', () => select(ft));
-      if (canHover) {
-        const name = attr(a, state.f.common) || 'Unknown species';
-        m.bindTooltip(`${esc(name)} · ${d ? fmtIn(d) + '″' : 'diameter not recorded'}`,
-          { className: 'tip', direction: 'top', offset: [0, -4], opacity: 1 });
-      }
-      m.addTo(treeLayer);
-      markers.push(m);
-    }
-    ring?.bringToFront();
+    treeFeats = feats.filter((ft) => ft.geometry && ft.geometry.x != null);
+    treeData = {
+      type: 'FeatureCollection',
+      features: treeFeats.map((ft, i) => {
+        const d = diamOf(ft.attributes);
+        return {
+          type: 'Feature', id: i,
+          geometry: { type: 'Point', coordinates: [ft.geometry.x, ft.geometry.y] },
+          properties: { i, fam: famOfSci(attr(ft.attributes, state.f.scientific)), d: d || 0, r: baseRadius(d) },
+        };
+      }),
+    };
+    map.getSource('trees')?.setData(treeData);
   }
 
-  function restyle() {
-    for (const m of markers) m.setStyle({ radius: radiusFor(m.tree.d), fillColor: famColors[m.tree.fam] });
-    if (ring && state.sel) ring.setStyle({ radius: radiusFor(diamOf(state.sel.attributes)) + 4, color: ink });
+  function selData() {
+    const ft = state.sel;
+    if (!ft) return { type: 'FeatureCollection', features: [] };
+    return { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [ft.geometry.x, ft.geometry.y] }, properties: { r: baseRadius(diamOf(ft.attributes)) } }] };
   }
-  map.on('zoomend', restyle);
+  const updateSelLayer = () => map.getSource('tree-selected')?.setData(selData());
+
+  // Recolor dots (family colors, halo) for the current theme.
+  function restyle() {
+    if (!map.getLayer('trees')) return;
+    const p = treePaint();
+    map.setPaintProperty('trees', 'circle-color', p['circle-color']);
+    map.setPaintProperty('trees', 'circle-stroke-color', p['circle-stroke-color']);
+    map.setPaintProperty('tree-selected', 'circle-stroke-color', ink);
+  }
+
+  // Hit-testing with a few pixels of slack, nearest dot wins.
+  function treeAt(point, slack = 4) {
+    if (!map.getLayer('trees')) return null;
+    const hits = map.queryRenderedFeatures([[point.x - slack, point.y - slack], [point.x + slack, point.y + slack]], { layers: ['trees'] });
+    let best = null, bd = Infinity;
+    for (const h of hits) {
+      const q = map.project(h.geometry.coordinates);
+      const dd = (q.x - point.x) ** 2 + (q.y - point.y) ** 2;
+      if (dd < bd) { bd = dd; best = h; }
+    }
+    return best ? treeFeats[best.properties.i] : null;
+  }
+
+  const tip = $('tip');
+  if (canHover) {
+    map.on('mousemove', (e) => {
+      const ft = treeAt(e.point, 3);
+      map.getCanvas().style.cursor = ft ? 'pointer' : '';
+      if (!ft) { tip.hidden = true; return; }
+      const d = diamOf(ft.attributes);
+      tip.textContent = `${attr(ft.attributes, state.f.common) || 'Unknown species'} · ${d ? fmtIn(d) + '″' : 'diameter not recorded'}`;
+      const q = map.project([ft.geometry.x, ft.geometry.y]);
+      tip.style.left = `${q.x}px`;
+      tip.style.top = `${q.y - 8}px`;
+      tip.hidden = false;
+    });
+    map.on('mouseout', () => { tip.hidden = true; });
+    map.on('movestart', () => { tip.hidden = true; });
+  }
 
   // Map status: what the view loader last reported. The pill at the top of the
   // map shows either this message or a plain-words summary of active filters.
@@ -333,7 +503,7 @@
       if (state.sel) {
         const id = attr(state.sel.attributes, state.oid);
         const g = state.sel.geometry;
-        const inView = map.getBounds().contains([g.y, g.x]);
+        const inView = map.getBounds().contains([g.x, g.y]);
         if (inView && !feats.some((ft) => attr(ft.attributes, state.oid) === id)) select(null);
       }
     } catch (e) {
@@ -349,16 +519,15 @@
 
   $('zin').onclick = () => map.zoomIn();
   $('zout').onclick = () => map.zoomOut();
-  $('zfit').onclick = () => map.setView(CONFIG.home.center, CONFIG.home.zoom);
-  new ResizeObserver(() => map.invalidateSize()).observe($('main'));
+  $('zfit').onclick = () => map.jumpTo({ center: lngLat(CONFIG.home.center), zoom: CONFIG.home.zoom });
+  new ResizeObserver(() => map.resize()).observe($('main'));
 
   // ---------------------------------------------------------------------------
   // Detail card
   // ---------------------------------------------------------------------------
   function select(ft) {
     state.sel = ft || null;
-    ring?.remove();
-    ring = null;
+    updateSelLayer();
     const card = $('card');
     if (!ft) { card.hidden = true; return; }
 
@@ -382,13 +551,12 @@
     $('clink').href = `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(5)},${lng.toFixed(5)}`;
     card.hidden = false;
     updateSaveButton();
-
-    ring = L.circleMarker([lat, lng], {
-      renderer, radius: radiusFor(d) + 4, color: ink, weight: 2, fill: false, interactive: false,
-    }).addTo(map);
   }
   $('cardx').onclick = () => select(null);
-  map.on('click', () => select(null));
+  map.on('click', (e) => {
+    if (e.originalEvent?.target?.closest?.('.fav-pin')) return; // handled by the star
+    select(treeAt(e.point, 6));
+  });
 
   // ---------------------------------------------------------------------------
   // Favorites: saved in this browser (localStorage), shown in the sidebar and
@@ -412,7 +580,7 @@
       if (moved.length) localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
     }
   } catch (e) { /* storage unavailable */ }
-  const favLayer = L.layerGroup().addTo(map);
+  let favMarkers = [];
 
   function treeKey(a) {
     const id = attr(a, state.f.unitId);
@@ -461,7 +629,7 @@
 
   function openFavorite(f) {
     const ft = favFeature(f);
-    map.setView([f.g.y, f.g.x], Math.max(map.getZoom(), CONFIG.detailZoom));
+    map.jumpTo({ center: [f.g.x, f.g.y], zoom: Math.max(map.getZoom(), CONFIG.detailZoom) });
     select(ft);
     if (window.matchMedia('(max-width: 760px)').matches) $('main').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -499,15 +667,17 @@
     }
 
     // Map stars
-    favLayer.clearLayers();
-    for (const f of favorites) {
-      L.marker([f.g.y, f.g.x], {
-        icon: L.divIcon({ className: 'fav-pin', html: '★', iconSize: [18, 18], iconAnchor: [9, 9] }),
-        keyboard: false,
-        title: attr(f.a, state.f.common) || 'Favorite tree',
-        zIndexOffset: 500,
-      }).on('click', (e) => { L.DomEvent.stopPropagation(e); select(favFeature(f)); }).addTo(favLayer);
-    }
+    favMarkers.forEach((m) => m.remove());
+    favMarkers = favorites.map((f) => {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'fav-pin';
+      el.textContent = '★';
+      el.title = attr(f.a, state.f.common) || 'Favorite tree';
+      el.setAttribute('aria-label', `Favorite: ${el.title}`);
+      el.addEventListener('click', (e) => { e.stopPropagation(); select(favFeature(f)); });
+      return new maplibregl.Marker({ element: el }).setLngLat([f.g.x, f.g.y]).addTo(map);
+    });
 
     // Card button
     updateSaveButton();
@@ -744,8 +914,8 @@
   // Theme switches recolor the dots and swap the basemap.
   function onTheme() {
     readColors();
-    tiles.setUrl(tileUrl());
-    restyle();
+    restyle();        // dots switch right away
+    applyBasemap();   // basemap swaps when its style is ready; tree layers are re-added on style.load
   }
   darkMq.addEventListener?.('change', onTheme);
 
@@ -841,12 +1011,13 @@
 
     // Open in a useful state: the largest recorded tree, selected.
     if (largest?.geometry) {
-      map.setView([largest.geometry.y, largest.geometry.x], CONFIG.detailZoom);
+      map.jumpTo({ center: [largest.geometry.x, largest.geometry.y], zoom: CONFIG.detailZoom });
       select(largest);
     } else {
       loadView();
     }
   }
 
+  applyBasemap();
   init();
 })();
