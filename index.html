@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css"
         integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css?v=20261103d">
+  <link rel="stylesheet" href="style.css?v=78ad2cfd2a">
 </head>
 <body>
 <div class="app">
@@ -55,6 +55,11 @@
             <button class="combo-clear" id="qclear" type="button" aria-label="Clear species" hidden>×</button>
             <div class="suggest" id="suggest" role="listbox" aria-label="Species" hidden></div>
           </div>
+        </div>
+
+        <div class="field">
+          <p class="label">Source</p>
+          <div class="chips" id="sources"></div>
         </div>
 
         <div class="field">
@@ -90,11 +95,16 @@
       <button class="x" type="submit" aria-label="Close">×</button>
     </form>
     <h2 id="about-title">About TreeTime</h2>
-    <p>TreeTime maps every in-service street tree in Seattle, loaded live from the City of Seattle's
-      <a href="https://data-seattlecitygis.opendata.arcgis.com/datasets/SeattleCityGIS::sdot-trees" target="_blank" rel="noopener">SDOT Trees</a> data.</p>
-    <p>Diameter is the city's recorded trunk diameter in inches; values over 80″ are treated as not recorded.
-      Park and private-yard trees aren't in this dataset.</p>
-    <p class="fine">Map © OpenStreetMap contributors · OpenFreeMap. City boundary: City of Seattle.
+    <p>TreeTime maps Seattle's publicly inventoried trees, loaded live from the organizations that look after them.</p>
+    <h3>About the data</h3>
+    <ul class="sources" id="about-sources"></ul>
+    <p><b>What's covered:</b> trees along Seattle's streets, and individually inventoried trees in city parks.
+      <b>What isn't:</b> trees in private yards, most trees in park natural areas, and trees on campuses and other
+      institutional grounds (the University of Washington, the Arboretum, schools, the Port).</p>
+    <p>Trunk diameter is the recorded diameter in inches; values over 80″ are treated as not recorded.
+      A tree that appears in two inventories is shown once.</p>
+    <p class="fine">The City of Seattle provides this data without warranty as to its accuracy.
+      Map © OpenStreetMap contributors · OpenFreeMap. City boundary: City of Seattle.
       Saved trees and your theme stay in this browser.</p>
   </dialog>
 
@@ -127,6 +137,7 @@
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"
         integrity="sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" crossorigin="anonymous"></script>
-<script src="app.js?v=20261103h"></script>
+<script type="importmap" id="importmap">{"imports":{"./js/cache.js":"./js/cache.js?v=4a5e92b3ee","./js/data.js":"./js/data.js?v=d88836d937","./js/dedupe.js":"./js/dedupe.js?v=b32708c32f","./js/saved.js":"./js/saved.js?v=48f62824aa","./js/sources/arcgis.js":"./js/sources/arcgis.js?v=af0df69d30","./js/sources/index.js":"./js/sources/index.js?v=5d1bddf4f8","./js/sources/make.js":"./js/sources/make.js?v=9cd89922b0","./js/sources/sdot.js":"./js/sources/sdot.js?v=a1bb11081b","./js/sources/spr.js":"./js/sources/spr.js?v=cfa84f64c8","./js/tree.js":"./js/tree.js?v=25a7496f84"}}</script>
+<script type="module" src="js/app.js?v=a385ec2905"></script>
 </body>
 </html>

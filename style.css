@@ -211,3 +211,10 @@ main{position:relative;background:var(--map);min-width:0;overflow:hidden}
   text-shadow:0 0 2px var(--map),0 0 2px var(--map),1px 0 1px var(--map),-1px 0 1px var(--map),0 1px 1px var(--map),0 -1px 1px var(--map);
   display:none}
 .labels-on .tree-label{display:block}
+
+/* ---------- sources ---------- */
+.chip.src i{border-radius:3px}
+.about h3{font-family:var(--body);font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
+.about .sources{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.45}
+.about .sources .fine{display:block;color:var(--muted);font-size:13px}
+.about{max-height:calc(100vh - 32px);overflow-y:auto}
