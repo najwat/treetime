@@ -1,0 +1,17 @@
+{
+  "name": "treetime",
+  "private": true,
+  "type": "module",
+  "description": "TreeTime: a static web app for Seattle's public trees. No build step; these scripts are for tests only.",
+  "scripts": {
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test \"tests/unit/*.test.js\"",
+    "test:e2e": "playwright test",
+    "stamp": "node scripts/stamp.mjs",
+    "serve": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "maplibre-gl": "5.24.0"
+  }
+}

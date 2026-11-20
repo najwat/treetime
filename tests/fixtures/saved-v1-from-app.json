@@ -1,0 +1,62 @@
+{
+ "note": "localStorage[\"favoriteTrees\"] exactly as written by the app before v2 (commit 7821c97), captured through its UI on 2026-11-20.",
+ "favoriteTrees": [
+  {
+   "key": "id:TRE-1199381",
+   "a": {
+    "OBJECTID": 817279,
+    "COMMON_NAME": "Common Stewartia",
+    "SCIENTIFIC_NAME": "Stewartia pseudocamellia",
+    "DIAM": 5,
+    "UNITDESC": "1521 SUNSET AVE SW",
+    "PLANTED_DATE": 1388534400000,
+    "UNITID": "TRE-1199381"
+   },
+   "g": {
+    "x": -122.3906055563039,
+    "y": 47.59010802349468
+   },
+   "savedAt": 1795150725164,
+   "since": 1795150725164,
+   "name": ""
+  },
+  {
+   "key": "id:TRE-1196083",
+   "a": {
+    "OBJECTID": 814155,
+    "COMMON_NAME": "Cherry/Plum/Laurel",
+    "SCIENTIFIC_NAME": "Prunus sp.",
+    "DIAM": 10,
+    "UNITDESC": "1526 Alki Ave SW",
+    "PLANTED_DATE": 1248912000000,
+    "UNITID": "TRE-1196083"
+   },
+   "g": {
+    "x": -122.3932499261211,
+    "y": 47.59010328181688
+   },
+   "savedAt": 1795150724386,
+   "since": 1795150724386,
+   "name": ""
+  },
+  {
+   "key": "id:TRE-73801",
+   "a": {
+    "OBJECTID": 559586,
+    "COMMON_NAME": "Coast Redwood",
+    "SCIENTIFIC_NAME": "Sequoia sempervirens",
+    "DIAM": 80,
+    "UNITDESC": "1627 SUNSET AV SW",
+    "PLANTED_DATE": 717292800000,
+    "UNITID": "TRE-73801"
+   },
+   "g": {
+    "x": -122.39169973051769,
+    "y": 47.58865646826079
+   },
+   "savedAt": 1795150717231,
+   "since": 1795150717231,
+   "name": "Mr. O’Leary 🌳"
+  }
+ ]
+}

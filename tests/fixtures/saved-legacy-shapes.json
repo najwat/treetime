@@ -1,0 +1,14 @@
+{
+  "note": "Older shapes that earlier versions of the app wrote. favoritesFirstVersion: before nicknames (no since/name). oidKeyed: a record keyed by OBJECTID with no UNITID. crushes: the short-lived 'treetimeCrushes' store, including one un-hearted record (on:false).",
+  "favoritesFirstVersion": [
+    { "key": "id:TRE-33477", "a": { "OBJECTID": 71000001, "COMMON_NAME": "Horse Chestnut", "SCIENTIFIC_NAME": "Aesculus hippocastanum", "DIAM": 31, "UNITDESC": "2405 NOB HILL AV N", "PLANTED_DATE": -473385600000, "UNITID": "TRE-33477" }, "g": { "x": -122.350944, "y": 47.640095 }, "savedAt": 1762300000000 }
+  ],
+  "oidKeyed": [
+    { "key": "oid:4242", "a": { "OBJECTID": 4242, "COMMON_NAME": "Red Maple", "SCIENTIFIC_NAME": "Acer rubrum", "DIAM": 999, "UNITDESC": "100 MAIN ST" }, "g": { "x": -122.33, "y": 47.61 }, "savedAt": 1761000000000 }
+  ],
+  "crushes": [
+    { "key": "id:TRE-33477", "a": { "OBJECTID": 71000001, "COMMON_NAME": "Horse Chestnut", "SCIENTIFIC_NAME": "Aesculus hippocastanum", "DIAM": 31, "UNITDESC": "2405 NOB HILL AV N", "UNITID": "TRE-33477" }, "g": { "x": -122.350944, "y": 47.640095 }, "since": 1760000000000, "addedAt": 1762400000000, "name": "Conker", "on": true },
+    { "key": "id:TRE-9", "a": { "OBJECTID": 9, "COMMON_NAME": "Ginkgo", "SCIENTIFIC_NAME": "Ginkgo biloba", "DIAM": 10, "UNITDESC": "9 NINTH AV", "UNITID": "TRE-9" }, "g": { "x": -122.32, "y": 47.62 }, "since": 1760000000000, "addedAt": 1760000000000, "name": "", "on": false }
+  ],
+  "garbage": [null, 7, "x", { "key": "id:NOPE" }, { "key": "id:TRE-1", "a": { "UNITID": "TRE-1" }, "g": { "x": "abc", "y": null } }]
+}

@@ -1,38 +1,113 @@
 # Design reference: TreeTime
 
-`reference/prototype.html` is a working prototype. Match its look and behavior. Reuse its CSS tokens directly rather than re-deriving them.
+The principle behind every choice: **relationships with trees, not ownership.** Nothing in the
+interface claims, ranks, counts people, or rewards streaks.
+
+## Tokens
+
+All colour, type size, spacing, radius and shadow values live at the top of `style.css`, in two layers.
+
+1. **Palette.** The only place a raw colour is written (`--stone-100`, `--moss-600`, `--night-700`…).
+   Components never use these.
+2. **Semantic tokens.** What components use. Light and dark themes differ only in how these point at
+   the palette. Dark is defined twice, once for the system setting and once for the theme button; a
+   test checks the two stay identical.
+
+A test (`tests/unit/tokens.test.js`) fails if a component uses a hex colour or a raw type size, if a
+token is used but not defined, or if a text or control colour pair drops below WCAG AA.
+
+### Colour
+
+| Token | Use |
+| --- | --- |
+| `--surface-page` | Page background and input wells |
+| `--surface-raised` | Sidebar, bottom sheet, card, pill, dialog |
+| `--surface-chip` | Chips, hover fills, count badges |
+| `--surface-map` | Behind the map while it loads |
+| `--content-primary` | Text |
+| `--content-secondary` | Labels, counts, secondary lines (at least 4.5:1 on every surface) |
+| `--content-border-color` | Dividers and the edges of surfaces |
+| `--control-border-color` | An outline that is the only edge of a control: search field, size buttons, an unselected chip (at least 3:1) |
+| `--accent` | Moss green. Selected states, links, the slider, focus rings. Nothing else |
+| `--accent-content` | Text on the accent |
+| `--family-maple` … `--family-other` | Tree families: map dots and chip swatches only, never interface chrome |
+| `--map-ground`, `--map-road-minor`, `--map-park`, `--map-water`, `--map-label`… | The basemap. `js/app.js` reads these and recolours the map style, so the map follows the theme with no colours in the script |
+
+Neutrals are cool and slightly green. There is no pure grey, and white appears only as roads and as text on the accent.
+
+### Type
+
+Bricolage Grotesque 700 for the title and headings (`--font-display`), IBM Plex Sans for everything
+else (`--font-body`), IBM Plex Mono with tabular numbers for counts, sizes and coordinates (`--font-mono`).
+
+| Token | Size | Use |
+| --- | --- | --- |
+| `--text-xs` | 12px | Field labels, map scale. Nothing is smaller |
+| `--text-mono` | 12.5px | Counts and ranges in mono |
+| `--text-sm` | 13px | Chips, pill, secondary lines |
+| `--text-md` | 14px | Controls, card rows, list rows |
+| `--text-base` | 15px | Body, search field |
+| `--text-input` | 16px | Text fields on phones (a smaller field makes iOS zoom the page) |
+| `--text-lg` | 19px | Card heading, phone title |
+| `--text-title` | 20px | Dialog heading |
+| `--text-xl` | 25px | TreeTime |
+
+`--weight-small` is the weight for text under 13px: 400 in light, 500 in dark.
+
+### Spacing and shape
+
+A 4px scale with half steps: `--space-1` (4px) to `--space-6` (24px), written `--space-1h` for 6px and
+so on. Radii: `--radius-sm` 6, `--radius-md` 8, `--radius-lg` 12, `--radius-xl` 16, `--radius-pill`.
+`--tap` is 44px, the smallest tap target on a phone.
 
 ## Layout
-- Desktop: fixed 340px filter sidebar on the left, full-height map on the right.
-- Phone (≤760px): full-screen map; the sidebar is a draggable bottom sheet, collapsed to the header, tab bar and search field.
-- Sidebar: header (TreeTime, theme cycle button, About dialog with the data note), then Explore / Saved tabs. Explore: species search (typeahead; top 5 in view when empty), family chips, size presets with a Custom slider. Saved: saved trees, "Show only these on map". Explore fits without scrolling at 800px tall.
 
-## Color
-- Cool, slightly green neutrals (`--bg #eef1ec`, `--panel #f8faf6`, `--ink #1d2a22`). No pure grey and no pure white.
-- One UI accent: moss green `--accent #2f6b46`. Use it for active states, slider fill, and focus rings only.
-- Ten tree-family colors (`--f-maple`, `--f-cherry`, … `--f-flowering`, `--f-shade`, `--f-other`) are used only for map dots, chip swatches, and species bars. Never use them for UI chrome.
-- Full dark theme. Every color is a CSS variable, redefined under `prefers-color-scheme: dark` and under `[data-theme="dark"]`.
+- **Desktop:** a fixed 340px sidebar on the left and a full-height map. The Explore tab fits without
+  scrolling at 800px tall.
+- **Phone (760px and under):** a full-screen map with the sidebar as a bottom sheet. Collapsed, it
+  shows the title, the tabs and the search field. The handle is a button: tap it, drag it, or press
+  Enter.
+- **Sidebar:** title, theme button, About; then Explore and Saved tabs. Explore has the species
+  search, source chips, family chips, and size presets with a Custom slider. Saved has the list and
+  "Show only these on map".
 
-## Type
-- Display: Bricolage Grotesque 700, for the title, the big count, and card headings.
-- Body: IBM Plex Sans.
-- Data: IBM Plex Mono, for counts, diameters, coordinates, and the scale bar. Use tabular numbers.
-- Section labels: 11px uppercase with 0.08em letter-spacing, in the muted color.
+## Phone rules
+
+- Every control is at least 44×44px. A test measures them.
+- The filter pill sits at the top left and stops short of the zoom buttons. It wraps to two lines
+  before it truncates.
+- The tree card spans the screen above the sheet. Its last row holds the Google Maps link on the
+  left and the actions on the right, each a full-size button. **There is room in that row for one
+  more action** (the heart planned for the next run), and the heading already swaps to a nickname
+  with the species below it.
+- The card leaves out the coordinates on a phone; the Google Maps link covers that.
+- There is no north arrow on a phone. The map never rotates, and the arrow looked like a button.
 
 ## Map
-- Dots are sized by trunk diameter and colored by family. Draw the largest trees first so small ones sit on top.
-- Filtered-out trees stay visible as tiny faint dots, so the street grid and context never disappear.
-- Controls: drag to pan, scroll or pinch to zoom, and +/−/reset buttons at top right. North arrow at top left. A metric scale bar at bottom left that updates with zoom.
-- Hovering a dot shows a tooltip with the name and diameter. Clicking a dot opens a detail card at bottom right with the name, genus, diameter in inches and cm, family, coordinates, and an "Open in Google Maps" link.
-- Seattle only: open on the whole-city fit; no zooming out past it; panning stops ~10% past the city. Outside the city, a ground-colored mask (75% light / 80% dark) sits above the basemap and below the trees and labels, with a 1px muted city outline at 50% opacity.
-- Basemap: MapLibre GL JS with OpenFreeMap vector tiles (Positron for light, Dark for dark), recolored to the tokens so it recedes behind the trees. Trees are a circle layer above roads and buildings and below street labels, with a 1px ground-colored halo.
 
-## Interaction details
-- Family chips toggle on and off. Clicking a chip while all are on isolates that family. "Show all" resets.
-- Size presets: Young <6″, Medium 6–17″, Mature 18–35″, Large 36–49″, Giant 50″+. Clicking an active preset clears it.
-- The species list shows the top 12 for the current filters, each with a count and a thin proportional bar in its family color. Clicking a species filters to it, and clicking it again clears it.
-- No count box. When a filter is active, a pill centered at the top of the map describes the result in plain words ("1,204 maples · 18–35″ · Clear filters"). The "Zoom in to see individual trees" message uses the same spot, so they never overlap.
-- The page opens in a useful state, with the largest tree selected.
+- Dots are sized by trunk diameter and coloured by family, with a 1px halo in the ground colour.
+  The largest are drawn first so small trees sit on top.
+- From zoom 13.5 every tree in view is shown. Zoomed out, dots show only when 3,000 or fewer trees
+  match; otherwise the pill says "Zoom in to see individual trees".
+- Controls: zoom in, zoom out and reset at the top right; a metric scale at the bottom left.
+- Hovering a dot shows its name and size. Clicking opens the card.
+- Seattle only: the map opens on the whole city, cannot zoom out past it, and stops about 10% past
+  the edge. Everything outside the city sits under a mask in the ground colour, with a 1px outline.
+- The basemap is OpenFreeMap vector tiles drawn by MapLibre, recoloured from the `--map-*` tokens so
+  it recedes. Street names stay above the trees.
+
+## Interaction
+
+- Family chips: clicking one while all are on shows only that family; after that, clicks add or
+  remove. "Show all" resets.
+- Source chips: at least one stays on.
+- Size presets: Young <6″, Medium 6–17″, Mature 18–35″, Large 36–49″, Giant 50″+. Clicking the
+  active one clears it.
+- The pill describes the result in plain words ("1,204 maples · 18–35″ · Clear filters") and carries
+  loading, empty and error messages in the same place.
+- The card names the tree's source. A tree in two inventories says so.
 
 ## Copy
-- Plain and specific. Name things the way a resident would ("Trunk diameter", "Tree family"). Avoid database field names.
+
+Plain and specific. Name things the way a resident would ("Trunk diameter", "Park trees"), never by
+database field. Say "Not recorded" for a missing value. Sentence case everywhere.
