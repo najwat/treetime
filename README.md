@@ -27,7 +27,7 @@ How the sources were chosen, and which were turned down, is in [`docs/AUDIT.md`]
   - On load, saved trees are checked against the city's in-service inventory. A tree that's no longer there stays in the list, marked "No longer in the city’s inventory", with its last known details, and can still be removed.
   - Saved trees are kept in this browser's `localStorage` (key `treetime.saved.v2`), so they don't sync between devices. Each record is `{ id, tree, savedAt, since, name, gone }`, where `id` is the tree's stable id (`sdot:TRE-73801`, `spr:23759`) and `tree` is a copy of its details. Saves from earlier versions (keys `favoriteTrees` and `treetimeCrushes`) are migrated on load and the old keys are left in place (`js/saved.js`).
 - **Filter pill**: when any filter is on, a pill at the top of the map sums up the result in plain words, such as "319 maples · 18–35″ · Clear filters" or "3 saved trees · Clear". The "Zoom in to see individual trees" message uses the same spot.
-- **Map**: [MapLibre GL JS](https://maplibre.org) with [OpenFreeMap](https://openfreemap.org) vector tiles. The app loads OpenFreeMap's Positron style (light) or Dark style (dark) and recolors it in `themeStyle()` (`js/app.js`) so the basemap recedes behind the trees. The palettes are in `BASEMAPS`:
+- **Map**: [MapLibre GL JS](https://maplibre.org) with [OpenFreeMap](https://openfreemap.org) vector tiles. The app loads OpenFreeMap's Positron style (light) or Dark style (dark) and recolors it in `themeStyle()` (`js/app.js`) so the basemap recedes behind the trees. The colours are the `--map-*` tokens in `style.css`:
   - Dark: ground `#0f1411`, minor roads `#1a221d`, major roads `#243029` with no casings, buildings `#141a16`, parks `#122019`, water `#0d1517`, labels `#7d8a81` with a ground-colored halo, street names from zoom 15.
   - Light: ground `#f4f6f1`, white roads with `#e2e7de` casings, buildings `#ebefe8`, parks `#e5eee1`, water `#dce7ea`, labels `#8a958d` with a white halo.
   - Both: buildings only from zoom 16, footpaths and sidewalks thin and close to the ground color, road shields hidden, other landuse hidden. All label layers are moved to the top of the style, so no road, path or building can be drawn over the trees.
@@ -116,7 +116,7 @@ The `.nojekyll` file tells Pages to serve the files as they are, without running
 
 ```
 index.html               page markup; loads MapLibre GL JS 5.24.0 from unpkg and fonts from Google Fonts
-style.css                design tokens (light and dark), layout, components
+style.css                palette, semantic tokens (light and dark), components, phone layout
 js/app.js                the interface: map, filters, card, saved trees, basemap styling
 js/tree.js               the tree format, families, data-quality rules, filter matching
 js/sources/              one adapter per data source (sdot.js, spr.js) and shared ArcGIS helpers

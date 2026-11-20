@@ -73,12 +73,18 @@ function fresh(key) {
 const root = document.documentElement;
 const darkMq = window.matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => root.dataset.theme === 'dark' || (root.dataset.theme !== 'light' && darkMq.matches);
-let famColors = [], ink = '#1d2a22', muted = '#5d6b62';
+// Colours live in style.css as tokens; the map can't read CSS, so they are read here
+// (again on every theme change).
+let famColors = [], ink = '', muted = '', mapColors = {};
+const MAP_TOKENS = { ground: 'ground', minor: 'road-minor', major: 'road-major', casing: 'road-casing', rail: 'rail', path: 'path',
+  building: 'building', park: 'park', water: 'water', boundary: 'boundary', label: 'label', halo: 'label-halo' };
 function readColors() {
   const c = getComputedStyle(root);
-  famColors = FAMILIES.map((f) => c.getPropertyValue('--f-' + f.id).trim());
-  ink = c.getPropertyValue('--ink').trim();
-  muted = c.getPropertyValue('--muted').trim();
+  const token = (name) => c.getPropertyValue(name).trim();
+  famColors = FAMILIES.map((f) => token('--family-' + f.id));
+  ink = token('--content-primary');
+  muted = token('--content-secondary');
+  mapColors = Object.fromEntries(Object.entries(MAP_TOKENS).map(([k, t]) => { const v = token('--map-' + t); return [k, v === 'none' ? null : v]; }));
 }
 readColors();
 
@@ -88,20 +94,12 @@ readColors();
 // from an OpenFreeMap style and is recolored so the basemap recedes and the
 // trees stand out. Colors follow DESIGN.md.
 // ---------------------------------------------------------------------------
-const BASEMAPS = {
-  light: {
-    style: 'https://tiles.openfreemap.org/styles/positron',
-    ground: '#f4f6f1', minor: '#ffffff', major: '#ffffff', casing: '#e2e7de', rail: '#e2e7de', path: '#e2e7de',
-    building: '#ebefe8', park: '#e5eee1', water: '#dce7ea', boundary: '#d3dacf',
-    label: '#8a958d', halo: '#ffffff', roadLabelMinZoom: null,
-  },
-  dark: {
-    style: 'https://tiles.openfreemap.org/styles/dark',
-    ground: '#0f1411', minor: '#1a221d', major: '#243029', casing: null, rail: '#1a221d', path: '#161d19',
-    building: '#141a16', park: '#122019', water: '#0d1517', boundary: '#243029',
-    label: '#7d8a81', halo: '#0f1411', roadLabelMinZoom: 15,
-  },
+const BASEMAP_STYLES = {
+  light: { style: 'https://tiles.openfreemap.org/styles/positron', roadLabelMinZoom: null },
+  dark: { style: 'https://tiles.openfreemap.org/styles/dark', roadLabelMinZoom: 15 },
 };
+// The basemap for a theme: its style plus the --map-* colour tokens (see style.css).
+const basemap = (name) => ({ ...BASEMAP_STYLES[name], ...mapColors });
 const BUILDING_MIN_ZOOM = 16;
 const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>';
 const themeName = () => (isDark() ? 'dark' : 'light');
@@ -188,7 +186,7 @@ const blankStyle = (p) => ({ version: 8, sources: {}, layers: [{ id: 'background
 
 const styleCache = {};
 function basemapStyle(name) {
-  const p = BASEMAPS[name];
+  const p = basemap(name);
   styleCache[name] ??= fetch(p.style)
     .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then((json) => themeStyle(json, p))
@@ -210,7 +208,7 @@ const fitPadding = () => (isPhone()
 
 const map = new maplibregl.Map({
   container: 'map',
-  style: blankStyle(BASEMAPS[themeName()]),
+  style: blankStyle(basemap(themeName())),
   bounds: CONFIG.cityBox,
   fitBoundsOptions: { padding: fitPadding() },
   maxZoom: 20,
@@ -245,7 +243,7 @@ let maskGeo = null;
 let userMoved = false;
 map.on('movestart', (e) => { if (e.originalEvent) userMoved = true; });
 
-const maskPaint = () => ({ 'fill-color': BASEMAPS[themeName()].ground, 'fill-opacity': isDark() ? 0.8 : 0.75, 'fill-antialias': false });
+const maskPaint = () => ({ 'fill-color': basemap(themeName()).ground, 'fill-opacity': isDark() ? 0.8 : 0.75, 'fill-antialias': false });
 const linePaint = () => ({ 'line-color': muted, 'line-opacity': 0.5, 'line-width': 1 });
 
 function bboxOf(geo) {
@@ -342,7 +340,7 @@ const zoomRadius = (r, add = 0) => ['interpolate', ['linear'], ['zoom'],
   12, ['+', ['*', r, 0.45], add], 13, ['+', ['*', r, 0.55], add], 16, ['+', r, add]];
 
 function treePaint() {
-  const ground = BASEMAPS[themeName()].ground;
+  const ground = basemap(themeName()).ground;
   const color = ['match', ['get', 'fam']];
   famColors.forEach((c, k) => color.push(k, c));
   color.push(famColors[famColors.length - 1]);
@@ -660,7 +658,7 @@ function renderSaved() {
     const name = nickname(rec);
     const row = document.createElement('div');
     row.className = 'fav';
-    row.style.setProperty('--c', `var(--f-${t.family})`);
+    row.style.setProperty('--c', `var(--family-${t.family})`);
     const sub = (name ? [treeName(t), sizeLabel(t), t.place] : [t.place, sizeLabel(t)]).filter(Boolean).join(' · ');
     row.classList.toggle('is-gone', !!rec.gone);
     row.innerHTML = `<button type="button" class="fav-open"><i></i><span><b></b><small></small><em class="gone-note" hidden>No longer in the city’s inventory</em></span></button>
@@ -905,7 +903,7 @@ function buildFamilyChips() {
     b.type = 'button';
     b.className = 'chip';
     b.dataset.family = f.id;
-    b.style.setProperty('--c', `var(--f-${f.id})`);
+    b.style.setProperty('--c', `var(--family-${f.id})`);
     b.innerHTML = `<i></i>${esc(f.name)} <small></small>`;
     b.onclick = () => {
       if (allFamilies()) state.families = new Set([f.id]);
@@ -987,7 +985,7 @@ let sugActive = -1;
 let viewTop = { key: '', rows: null };
 
 const speciesMeta = (name) => summary?.speciesFamily?.[String(name).toLowerCase()];
-const speciesColor = (name) => `var(--f-${speciesMeta(name)?.family || 'other'})`;
+const speciesColor = (name) => `var(--family-${speciesMeta(name)?.family || 'other'})`;
 
 function syncSearch() {
   if (document.activeElement !== qEl) qEl.value = state.species || '';
@@ -1248,7 +1246,10 @@ function setSheet(stateName, animate = true) {
   root.style.setProperty('--sheet-visible', `${stateName === 'expanded' ? sheetFull() : sheetPeek}px`);
 }
 
-// Drag from the grab handle, header or tab bar; tap the handle to toggle.
+// Drag from the grab handle, header or tab bar; tap the handle (or press Enter on it) to toggle.
+const toggleSheet = () => setSheet(sheetState === 'expanded' ? 'collapsed' : 'expanded');
+let lastTap = 0;
+$('grab').addEventListener('click', () => { if (performance.now() - lastTap > 500) toggleSheet(); }); // keyboard and assistive tech
 let drag = null;
 sheet.addEventListener('pointerdown', (e) => {
   if (!isPhone() || !e.target.closest('.grab, .hdr, .tabs')) return;
@@ -1267,7 +1268,7 @@ window.addEventListener('pointermove', (e) => {
 window.addEventListener('pointerup', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
   const d = drag; drag = null;
-  if (!d.moved) { if (e.target.closest('.grab')) setSheet(sheetState === 'expanded' ? 'collapsed' : 'expanded'); return; }
+  if (!d.moved) { if (e.target.closest('.grab')) { toggleSheet(); d.tapped = performance.now(); lastTap = d.tapped; } return; }
   sheet.dataset.justDragged = '1'; // swallow the click that follows a drag
   setTimeout(() => delete sheet.dataset.justDragged, 0);
   const dy = e.clientY - d.y, v = dy / Math.max(1, performance.now() - d.t); // px per ms
