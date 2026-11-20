@@ -7,6 +7,15 @@ Section 5 says what Phase 1 changed. The design critique for Phase 2 is section 
 Screenshots of the app before v2 are in [`docs/audit/`](audit/), taken at 1280×800 and 390×844
 in light and dark.
 
+## Decisions since the audit
+
+Made by Najwat in November 2026, after Phases 0–2 were merged. Don't raise these again unless asked.
+
+- **UW campus trees:** left out for now. No request to UW for permission.
+- **Tree families:** the eight stay as they are, with "Everything else" as the catch-all.
+- **Nicknames, "Saved since" and the "no longer in the inventory" marker:** keeping them as they
+  were, without extending them, was the right call.
+
 ## 1. What was built, and how
 
 A static site with no build step: `index.html`, `style.css` and one 1,200-line `app.js`.
@@ -72,7 +81,7 @@ Ranked by how much they hurt.
    could change while the previous dots were still on screen. Found by the new tests. *Fixed in
    Phase 1.*
 6. **"Everything else" is 39% of the trees** (84,311 of 215,781 street trees). The eight families
-   are the common ones, but the catch-all is the biggest chip. Not changed; noted for a later run.
+   are the common ones, but the catch-all is the biggest chip. **Decided (Nov 2026): leave the eight families as they are.**
 7. **Out-of-range diameters.** 33 street trees over 80″ (up to 555″) were already treated as "not
    recorded". Future planting dates (one tree "planted" in 2027) and 702 trees named "Unknown" were
    shown as they came. *Fixed in Phase 1.*
@@ -88,7 +97,7 @@ nickname flow.
 
 **Already built that the brief lists for the next run:** nicknames, "Saved since", and the marker
 for trees that left the inventory. They were kept working and carried through the migration, and
-not extended.
+not extended. **Confirmed (Nov 2026): this is what was intended.**
 
 ## 4. Other Seattle tree data
 
@@ -101,7 +110,7 @@ November 2026 against the live services.
 | **SDOT Trees** (`SDOT_Trees_CDL`) | City of Seattle, Seattle Department of Transportation | Street trees citywide, plus some trees on other public land by ownership | 215,781 in service | id, common and scientific name, diameter, height (mostly empty), planted date, address, ownership, heritage flag | Refreshed daily | Seattle GIS Open Data, provided without warranty; credit the City of Seattle | ArcGIS FeatureServer, CORS open | **In use** |
 | **SPR Tree View** (`SPR_Tree_View`) | Seattle Parks and Recreation, Urban Forestry | Individually inventoried trees in developed parks | 21,545 existing | id, common name, species, diameter, height, park name, status | Refreshed weekly | Same open-data terms; credit Seattle Parks and Recreation | ArcGIS FeatureServer, CORS open | **Added** |
 | Combined Tree Point | City of Seattle | SDOT and SPR merged | about 237,000 | fewer fields, **no status field** (removed trees cannot be excluded) | Weekly | Open data | FeatureServer | Rejected: loses the status and source of each record |
-| UW campus trees (PublicData layer 37) | University of Washington, Facilities | Seattle campus | 8,936 | tree number, species, common name, diameter, height | Edited 14 Nov 2026 | **"Educational and research purposes only… all other uses expressly prohibited"** | ArcGIS MapServer | **Does not clear the bar without permission.** Good data; worth asking UW (see open questions) |
+| UW campus trees (PublicData layer 37) | University of Washington, Facilities | Seattle campus | 8,936 | tree number, species, common name, diameter, height | Edited 14 Nov 2026 | **"Educational and research purposes only… all other uses expressly prohibited"** | ArcGIS MapServer | **Does not clear the bar without permission.** Good data. **Decided (Nov 2026): leave UW out for now and don't ask for permission.** |
 | UW Botanic Gardens / Arboretum | UWBG | Washington Park Arboretum collections | — | — | — | — | Interactive map only, no public bulk service found | Rejected: no official bulk access |
 | Trees for Neighborhoods plantings | Seattle Public Utilities | Trees given to residents | 14,467 | planting address, common name; no scientific name or size | Last updated 2024 | Open data | FeatureServer | Rejected: 10,586 are in private yards with home addresses, and nobody updates whether they are alive |
 | Heritage trees | City of Seattle / Plant Amnesty | Designated heritage trees | 289 flagged within SDOT | flag on the SDOT record | With SDOT | With SDOT | With SDOT | Not a separate source; **shown on the card** as "City Heritage Tree" |
@@ -160,7 +169,7 @@ Phase 2; before and after screenshots are in [`docs/design/`](design/).
 | 6 | **The sheet handle could not be reached without touch**, and was a 15px-tall target. | Keyboard and switch users could not open the filters on a narrow window. | **Fixed.** It is a button with a label, 44px tall. |
 | 7 | **Source chips had an empty space where the swatch should be.** | Looked broken (introduced in Phase 1). | **Fixed.** A square marker in the accent, filled when on. |
 | 8 | **The card and the collapsed sheet together cover about 60% of the screen.** | The tree you selected is visible, but little of its street is. | **Partly.** The card is shorter than it would otherwise be. A proper fix means the sheet shrinking to its handle while a card is open, which changes how the sheet behaves and should be tried on a real phone first. |
-| 9 | **"Everything else" is the largest family chip (39%).** | The family filter says least about the trees people most often meet. | Not changed. Needs a decision on which families to add (lindens, elms, hawthorns and ashes would cover most of it). |
+| 9 | **"Everything else" is the largest family chip (39%).** | The family filter says least about the trees people most often meet. | Not changed. **Decided (Nov 2026): keep the eight families; don't add more.** |
 | 10 | **Family counts are blank while they load**, with nothing to say they are coming. | A brief flash of unfinished-looking chips on a slow connection. After the first visit the stored counts show at once. | Not changed. |
 | 11 | **Colours, sizes and spacing were written by hand** in each rule, and the map's colours were in the script. | Dark mode and any future restyle meant hunting through the file. | **Fixed.** Tokens (see `DESIGN.md`); the map reads its colours from them. |
 | 12 | **Zoomed out there are no trees to see** until a filter narrows them, only a message. | The first screen is a map with no trees on it. | Not changed. A density layer (one soft dot per block) would fix it and is worth a run of its own. |
