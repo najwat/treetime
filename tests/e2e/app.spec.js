@@ -331,3 +331,44 @@ test.describe('accessibility basics', () => {
     await expect(page.locator('#about')).toBeHidden();
   });
 });
+
+test.describe('phone layout', () => {
+  test('every control is at least 44px in both directions', async ({ page }, testInfo) => {
+    test.skip(!isPhone(testInfo), 'phone only');
+    await mockNetwork(page);
+    await ready(page);
+    const small = () => page.evaluate(() => [...document.querySelectorAll('button, a[href], input[type=text], [role=tab], label.switch')]
+      .filter((e) => e.getClientRects().length && !e.closest('.maplibregl-ctrl, .maplibregl-marker, .about p, .about li'))
+      .map((e) => { const r = e.getBoundingClientRect(); return { el: e.id || e.className, w: Math.round(r.width), h: Math.round(r.height) }; })
+      .filter((x) => x.w < 44 || x.h < 44));
+    expect(await small()).toEqual([]);
+    await openPanel(page, testInfo);
+    expect(await small()).toEqual([]);
+    await page.locator('.chip[data-family=oak]').click();
+    await page.locator('#customtoggle').click();
+    expect(await small()).toEqual([]);
+    await closePanel(page, testInfo);
+    await page.locator('#pillclear').click();
+    await jumpTo(page, FIXTURE_CENTER, 18);
+    await clickTree(page, 'sdot:TRE-33477');
+    await page.locator('#cfav').click();
+    expect(await small()).toEqual([]);
+    await openPanel(page, testInfo);
+    await page.locator('#tab-saved').click();
+    expect(await small()).toEqual([]);
+    await page.locator('#aboutbtn').click();
+    expect(await small()).toEqual([]);
+    // nothing scrolls sideways
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  });
+
+  test('the sheet handle works from the keyboard', async ({ page }, testInfo) => {
+    test.skip(!isPhone(testInfo), 'phone only');
+    await mockNetwork(page);
+    await ready(page);
+    await page.locator('#grab').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#sheet')).toHaveAttribute('data-state', 'expanded');
+    await expect(page.locator('#grab')).toHaveAttribute('aria-label', 'Collapse panel');
+  });
+});

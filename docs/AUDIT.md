@@ -147,4 +147,32 @@ number of dots (1,399 giant trees counted, 1,392 shown).
 
 ## 6. Design critique
 
-*Added in Phase 2.*
+Of the app after Phase 1, on a phone at 390px, ranked by how much each hurts. "Fixed" means fixed in
+Phase 2; before and after screenshots are in [`docs/design/`](design/).
+
+| # | Issue | Why it matters | Status |
+| --- | --- | --- | --- |
+| 1 | **Almost nothing is big enough to tap.** Chips are 31px tall, the card's Save 27, its close button 28, the Maps link 20, "Show all" and "Custom" 17, zoom buttons 34. | The app is used outdoors, one-handed, standing at a tree. Missed taps toggle the wrong family or close the card. | **Fixed.** Every control is at least 44×44. A test measures them. |
+| 2 | **The tree card is a narrow desktop card floating on a phone.** It is 260px wide, pinned right, with its actions crammed into one small row. | The card is the heart of the app and the place the next features (heart, name) land. There was no room for them. | **Fixed.** Full-width card, an action row of full-size buttons with space for one more, coordinates left out. |
+| 3 | **The search field zooms the page on iOS.** Its text is 15px; Safari zooms any field under 16px and does not zoom back. | Breaks the layout on the first tap of the main control. | **Fixed.** 16px on phones. |
+| 4 | **Outlines too faint to see.** The search field, size buttons and unselected chips are drawn with a 1.4:1 border, in both themes. | In sunlight the controls disappear; WCAG asks for 3:1 on a control's only edge. | **Fixed.** A separate, stronger token for control outlines (4:1). Applies to desktop too. |
+| 5 | **The north arrow looks like a button and does nothing**, and on a phone it squeezes the pill. | A dead control at the top of the screen. | **Fixed on phones** (removed; the pill now starts at the left edge and has 60px more room). Left on desktop, as the brief asks. |
+| 6 | **The sheet handle could not be reached without touch**, and was a 15px-tall target. | Keyboard and switch users could not open the filters on a narrow window. | **Fixed.** It is a button with a label, 44px tall. |
+| 7 | **Source chips had an empty space where the swatch should be.** | Looked broken (introduced in Phase 1). | **Fixed.** A square marker in the accent, filled when on. |
+| 8 | **The card and the collapsed sheet together cover about 60% of the screen.** | The tree you selected is visible, but little of its street is. | **Partly.** The card is shorter than it would otherwise be. A proper fix means the sheet shrinking to its handle while a card is open, which changes how the sheet behaves and should be tried on a real phone first. |
+| 9 | **"Everything else" is the largest family chip (39%).** | The family filter says least about the trees people most often meet. | Not changed. Needs a decision on which families to add (lindens, elms, hawthorns and ashes would cover most of it). |
+| 10 | **Family counts are blank while they load**, with nothing to say they are coming. | A brief flash of unfinished-looking chips on a slow connection. After the first visit the stored counts show at once. | Not changed. |
+| 11 | **Colours, sizes and spacing were written by hand** in each rule, and the map's colours were in the script. | Dark mode and any future restyle meant hunting through the file. | **Fixed.** Tokens (see `DESIGN.md`); the map reads its colours from them. |
+| 12 | **Zoomed out there are no trees to see** until a filter narrows them, only a message. | The first screen is a map with no trees on it. | Not changed. A density layer (one soft dot per block) would fix it and is worth a run of its own. |
+
+### What was checked for accessibility
+
+- **Contrast:** every text colour is at least 4.5:1 on every surface it sits on, and control outlines
+  and the accent at least 3:1, in light and dark. A unit test computes this from the tokens.
+- **Keyboard:** every control is reachable and operable; tabs use arrow keys; the dialog closes on
+  Escape; focus rings are 2px in the accent.
+- **Labels:** no icon-only control is without a name (tested).
+- **Tap targets:** 44×44 on phones (tested). The two exceptions are links inside sentences in the
+  About text, which WCAG exempts.
+- **Not checked:** a screen reader on a real phone. The map canvas itself is not navigable by
+  keyboard tree by tree; the Saved list is the keyboard route to a tree's card.
